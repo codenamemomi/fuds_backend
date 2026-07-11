@@ -47,7 +47,7 @@ class TestAnalytics:
             fullname="Test User",
             email="test@example.com",
             phone="08033334444",
-            hashed_password="...",
+            password_hash="...",
             is_active=True,
             phone_verified=True,
         )
