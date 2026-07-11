@@ -15,7 +15,7 @@ class User(Base):
     phone: Mapped[str] = mapped_column(String(30), unique=True, nullable=False)
     email: Mapped[Optional[str]] = mapped_column(String(255), unique=True, nullable=True)
     password_hash: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    otp: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
+    phone_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     diet_goal: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     address: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
@@ -24,4 +24,12 @@ class User(Base):
 
     orders: Mapped[list["Order"]] = relationship(back_populates="user", cascade="all, delete-orphan")
     scheduled_meals: Mapped[list["ScheduledMeal"]] = relationship(back_populates="user", cascade="all, delete-orphan")
-    marketplace_items: Mapped[list["Marketplace"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    grocery_subscriptions: Mapped[list["GrocerySubscription"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+
+    @property
+    def marketplace_items(self):
+        return self.grocery_subscriptions
+
+    @marketplace_items.setter
+    def marketplace_items(self, value):
+        self.grocery_subscriptions = value

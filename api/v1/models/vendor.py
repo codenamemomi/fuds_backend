@@ -14,12 +14,20 @@ class VendorStatus(str, enum.Enum):
     DEACTIVATED = "deactivated"
 
 
+class VendorCategory(str, enum.Enum):
+    RESTAURANT = "restaurant"
+    GROCERY_STORE = "grocery_store"
+    SUPERMARKET = "supermarket"
+    BAKERY = "bakery"
+    PHARMACY = "pharmacy"
+
+
 class Vendor(Base):
     __tablename__ = "vendors"
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     business_name: Mapped[str] = mapped_column(String(255), nullable=False)
-    category: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    category: Mapped[Optional[VendorCategory]] = mapped_column(String(20), nullable=True)
     business_description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     business_logo: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     cac: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)

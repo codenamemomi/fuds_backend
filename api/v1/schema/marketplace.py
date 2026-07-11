@@ -6,7 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from api.v1.models.marketplace import MarketplaceFrequency
 
 
-class MarketplaceCreate(BaseModel):
+class GrocerySubscriptionCreate(BaseModel):
     user_id: int
     item_list: list[str] = Field(..., min_length=1)
     frequency: MarketplaceFrequency
@@ -14,8 +14,12 @@ class MarketplaceCreate(BaseModel):
     status: str = "active"
 
 
-class MarketplaceRead(MarketplaceCreate):
+class GrocerySubscriptionRead(GrocerySubscriptionCreate):
     id: int
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+MarketplaceCreate = GrocerySubscriptionCreate
+MarketplaceRead = GrocerySubscriptionRead

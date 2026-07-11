@@ -1,4 +1,4 @@
-from datetime import datetime, time
+from datetime import datetime
 from typing import Optional
 
 from sqlalchemy import DateTime, ForeignKey, Numeric, String
@@ -15,7 +15,9 @@ class Order(Base):
     parent_order_id: Mapped[Optional[int]] = mapped_column(ForeignKey("orders.id"), nullable=True)
     vendor_id: Mapped[Optional[int]] = mapped_column(ForeignKey("vendors.id"), nullable=True)
     status: Mapped[str] = mapped_column(String(50), default="pending", nullable=False)
-    delivery_time: Mapped[Optional[time]] = mapped_column(nullable=True)
+    delivery_time: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    rider_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    rider_phone: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
     payment_status: Mapped[str] = mapped_column(String(50), default="pending", nullable=False)
     total_price: Mapped[float] = mapped_column(Numeric(10, 2), default=0.0, nullable=False)
     completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
