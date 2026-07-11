@@ -42,8 +42,8 @@ def export_revenue_to_csv(db: Session = Depends(get_db)):
     for order in orders:
         date_str = order.created_at.strftime("%Y-%m-%d") if order.created_at else ""
         customer_name = (
-            f"{order.user.first_name} {order.user.last_name}"
-            if order.user and (order.user.first_name or order.user.last_name)
+            order.user.fullname
+            if order.user and order.user.fullname
             else (order.user.email if order.user else f"User #{order.user_id}")
         )
         vendor_name = order.vendor.business_name if order.vendor else "Multi-Vendor / Platform"
