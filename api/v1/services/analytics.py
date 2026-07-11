@@ -20,10 +20,10 @@ class AnalyticsService:
         total_vendors = self.db.query(Vendor).count()
         active_vendors = self.db.query(Vendor).filter(Vendor.status == "activated").count()
         total_orders = self.db.query(Order).count()
-        completed_orders = self.db.query(Order).filter(Order.status == "completed").count()
         total_revenue = self.db.query(Order).with_entities(Order.total_price).all()
         total_revenue_value = sum(float(value[0] or 0) for value in total_revenue)
         shopping_lists_created = self.db.query(Marketplace).count()
+        shopping_lists_due = self.db.query(Marketplace).filter(Marketplace.status == "active").all()
 
         return AnalyticsSummary(
             total_users=total_users,
@@ -31,7 +31,8 @@ class AnalyticsService:
             total_vendors=total_vendors,
             active_vendors=active_vendors,
             total_orders=total_orders,
-            completed_orders=completed_orders,
-            total_revenue=total_revenue_value,
+            revenue=total_revenue_value,
             shopping_lists_created=shopping_lists_created,
+            shopping_lists_due=shopping_lists_due,
         )
+

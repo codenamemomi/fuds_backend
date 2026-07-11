@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 
 from api.utils.celery_app import sample_task
+from api.v1.routes.analytics import router as analytics_router
 from api.v1.routes.browse import router as browse_router
 from api.v1.routes.cart import router as cart_router
 from api.v1.routes.orders import router as orders_router
@@ -11,6 +12,8 @@ router.include_router(user_router)
 router.include_router(browse_router)
 router.include_router(cart_router)
 router.include_router(orders_router)
+router.include_router(analytics_router)
+
 
 
 @router.get("/health")

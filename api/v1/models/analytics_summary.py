@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass
@@ -8,9 +8,9 @@ class AnalyticsSummary:
     total_vendors: int = 0
     active_vendors: int = 0
     total_orders: int = 0
-    completed_orders: int = 0
-    total_revenue: float = 0.0
+    revenue: float = 0.0
     shopping_lists_created: int = 0
-    subscriptions_due_this_week: int = 0
+    shopping_lists_due: list = field(default_factory=list)
     available_riders: int = 0
     registered_riders: int = 0
+
