@@ -38,9 +38,9 @@ jobs:
 
       - name: Run Pytest
         env:
-          DATABASE_URL: sqlite:///:memory:
-          REDIS_URL: redis://localhost:6379/0
-          CELERY_BROKER_URL: redis://localhost:6379/0
-          CELERY_RESULT_BACKEND: redis://localhost:6379/0
+          DATABASE_URL: "sqlite:///:memory:"
+          REDIS_URL: "redis://localhost:6379/0"
+          CELERY_BROKER_URL: "redis://localhost:6379/0"
+          CELERY_RESULT_BACKEND: "redis://localhost:6379/0"
         run: |
           pytest
