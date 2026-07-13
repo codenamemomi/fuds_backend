@@ -15,10 +15,11 @@ def get_user_service(db: Session = Depends(get_db)) -> UserService:
     return UserService(db)
 
 
-@router.post("/register", response_model=UserRead, status_code=status.HTTP_201_CREATED)
-def register_user(payload: UserCreate, service: UserService = Depends(get_user_service)) -> UserRead:
+@router.post("/register", status_code=status.HTTP_201_CREATED)
+def register_user(payload: UserCreate, service: UserService = Depends(get_user_service)):
     user = service.register(payload)
-    return UserRead.model_validate(user)
+    token = service._create_access_token(user)
+    return {"access_token": token, "token_type": "bearer", "user": UserRead.model_validate(user)}
 
 
 @router.post("/verify-otp", status_code=status.HTTP_200_OK)

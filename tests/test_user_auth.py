@@ -55,9 +55,11 @@ def test_register_and_login_flow(client):
 
     assert register_response.status_code == 201
     body = register_response.json()
-    assert body["phone"] == "08012345678"
-    assert body["email"] == "jane@example.com"
-    assert "password_hash" not in body
+    assert body["access_token"] is not None
+    assert body["token_type"] == "bearer"
+    assert body["user"]["phone"] == "+2348012345678"
+    assert body["user"]["email"] == "jane@example.com"
+    assert "password_hash" not in body["user"]
 
     # Attempt login before verifying OTP (should fail with HTTP 403 Forbidden)
     login_unverified_response = client.post(
@@ -128,7 +130,7 @@ def test_register_and_login_flow(client):
     auth_body = login_response.json()
     access_token = auth_body["access_token"]
     assert access_token
-    assert auth_body["user"]["phone"] == "08012345678"
+    assert auth_body["user"]["phone"] == "+2348012345678"
 
     # Test /me endpoint with invalid token
     me_invalid_response = client.get(
@@ -150,7 +152,7 @@ def test_register_and_login_flow(client):
     )
     assert me_response.status_code == 200
     me_body = me_response.json()
-    assert me_body["phone"] == "08012345678"
+    assert me_body["phone"] == "+2348012345678"
     assert me_body["email"] == "jane@example.com"
 
     # Test editing profile (PUT /me)
@@ -202,7 +204,7 @@ def test_register_and_login_flow(client):
     )
     assert edit_phone_response.status_code == 200
     edit_phone_body = edit_phone_response.json()
-    assert edit_phone_body["phone"] == "08087654321"
+    assert edit_phone_body["phone"] == "+2348087654321"
     assert edit_phone_body["phone_verified"] is False
 
     # Test logout
