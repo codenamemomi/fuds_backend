@@ -8,7 +8,14 @@ from sqlalchemy.orm import Session
 from api.utils.otp import OTPService
 from api.utils.settings import settings
 from api.v1.models.user import User
-from api.v1.schema.user import UserCreate, UserLogin, UserRead, UserUpdate, UserResendOTP
+from api.v1.schema.user import (
+    ChangePasswordRequest,
+    UserCreate,
+    UserLogin,
+    UserRead,
+    UserUpdate,
+    UserResendOTP,
+)
 from api.v1.services.base import BaseService
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -25,7 +32,7 @@ class UserService(BaseService[User, UserCreate, UserRead]):
         if payload.email and self.db.query(User).filter(User.email == payload.email).first():
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
 
-        user_data = payload.model_dump(exclude={"password"})
+        user_data = payload.model_dump(exclude={"password", "password_confirm"})
         user_data["password_hash"] = self.hash_password(payload.password)
         user_data["phone_verified"] = False
         user = self.model_class(**user_data)
@@ -96,9 +103,6 @@ class UserService(BaseService[User, UserCreate, UserRead]):
         if payload.fullname is not None:
             user.fullname = payload.fullname
 
-        if payload.password is not None:
-            user.password_hash = self.hash_password(payload.password)
-
         if payload.diet_goal is not None:
             user.diet_goal = payload.diet_goal
 
@@ -108,6 +112,18 @@ class UserService(BaseService[User, UserCreate, UserRead]):
         self.db.commit()
         self.db.refresh(user)
         return user
+
+    def change_password(self, user: User, payload: ChangePasswordRequest) -> None:
+        if not user.password_hash or not self.verify_password(
+            payload.current_password, user.password_hash
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Current password is incorrect",
+            )
+        user.password_hash = self.hash_password(payload.new_password)
+        self.db.commit()
+        self.db.refresh(user)
 
     @staticmethod
     def hash_password(password: str) -> str:

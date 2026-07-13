@@ -54,12 +54,12 @@ def register_verify_login(client) -> str:
         "fullname": "Commerce Tester",
         "phone": "08011112222",
         "email": "commerce@example.com",
-        "password": "secret123",
+        "password": "Secret123", "password_confirm": "Secret123",
     })
     otp_raw = redis_client.get("otp:registration:commerce@example.com")
     otp_code = json.loads(otp_raw)["code"]
     client.post("/api/v1/auth/verify-otp", json={"email": "commerce@example.com", "otp": otp_code})
-    resp = client.post("/api/v1/auth/login", json={"phone": "08011112222", "password": "secret123"})
+    resp = client.post("/api/v1/auth/login", json={"phone": "08011112222", "password": "Secret123"})
     return resp.json()["access_token"]
 
 

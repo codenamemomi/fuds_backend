@@ -49,7 +49,7 @@ def test_register_and_login_flow(client):
             "fullname": "Jane Doe",
             "phone": "08012345678",
             "email": "jane@example.com",
-            "password": "secret123",
+            "password": "Secret123", "password_confirm": "Secret123",
         },
     )
 
@@ -64,7 +64,7 @@ def test_register_and_login_flow(client):
     # Attempt login before verifying OTP (should fail with HTTP 403 Forbidden)
     login_unverified_response = client.post(
         "/api/v1/auth/login",
-        json={"phone": "08012345678", "password": "secret123"},
+        json={"phone": "08012345678", "password": "Secret123"},
     )
     assert login_unverified_response.status_code == 403
     assert "verify" in login_unverified_response.json()["detail"].lower()
@@ -123,7 +123,7 @@ def test_register_and_login_flow(client):
     # Now login should succeed
     login_response = client.post(
         "/api/v1/auth/login",
-        json={"phone": "08012345678", "password": "secret123"},
+        json={"phone": "08012345678", "password": "Secret123"},
     )
 
     assert login_response.status_code == 200
@@ -172,6 +172,46 @@ def test_register_and_login_flow(client):
     assert edit_body["address"] == "123 Lagos Way"
     assert edit_body["phone_verified"] is True
 
+    # Password confirm mismatch on register
+    weak_register = client.post(
+        "/api/v1/auth/register",
+        json={
+            "fullname": "Weak User",
+            "phone": "08099998888",
+            "email": "weak@example.com",
+            "password": "Secret123",
+            "password_confirm": "Secret999",
+        },
+    )
+    assert weak_register.status_code == 422
+
+    # Change password
+    change_pw = client.post(
+        "/api/v1/auth/change-password",
+        headers={"Authorization": f"Bearer {access_token}"},
+        json={
+            "current_password": "Secret123",
+            "new_password": "NewSecret1",
+            "password_confirm": "NewSecret1",
+        },
+    )
+    assert change_pw.status_code == 200
+
+    # Old password fails
+    old_login = client.post(
+        "/api/v1/auth/login",
+        json={"phone": "08012345678", "password": "Secret123"},
+    )
+    assert old_login.status_code == 401
+
+    # New password works
+    new_login = client.post(
+        "/api/v1/auth/login",
+        json={"phone": "08012345678", "password": "NewSecret1"},
+    )
+    assert new_login.status_code == 200
+    access_token = new_login.json()["access_token"]
+
     # Register a second user to test conflicts
     register2_response = client.post(
         "/api/v1/auth/register",
@@ -179,7 +219,7 @@ def test_register_and_login_flow(client):
             "fullname": "Bob Smith",
             "phone": "09012345678",
             "email": "bob@example.com",
-            "password": "secret123",
+            "password": "Secret123", "password_confirm": "Secret123",
         },
     )
     assert register2_response.status_code == 201

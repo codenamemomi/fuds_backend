@@ -6,6 +6,7 @@ from sqlalchemy import String, Time, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from api.v1.models.base_class import Base
+from api.v1.models.categories import VendorCategory  # re-export for imports
 
 
 class VendorStatus(str, enum.Enum):
@@ -14,12 +15,8 @@ class VendorStatus(str, enum.Enum):
     DEACTIVATED = "deactivated"
 
 
-class VendorCategory(str, enum.Enum):
-    RESTAURANT = "restaurant"
-    GROCERY_STORE = "grocery_store"
-    SUPERMARKET = "supermarket"
-    BAKERY = "bakery"
-    PHARMACY = "pharmacy"
+# Re-export so `from api.v1.models.vendor import VendorCategory` still works
+__all__ = ["Vendor", "VendorStatus", "VendorCategory"]
 
 
 class Vendor(Base):
@@ -27,7 +24,8 @@ class Vendor(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     business_name: Mapped[str] = mapped_column(String(255), nullable=False)
-    category: Mapped[Optional[VendorCategory]] = mapped_column(String(20), nullable=True)
+    # String(40) supports package_delivery / local_market and future tags
+    category: Mapped[Optional[str]] = mapped_column(String(40), nullable=True, index=True)
     business_description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     business_logo: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     cac: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
