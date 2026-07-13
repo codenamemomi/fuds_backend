@@ -28,3 +28,4 @@ class Order(Base):
     parent_order: Mapped[Optional["Order"]] = relationship(remote_side="Order.id", back_populates="sub_orders")
     sub_orders: Mapped[list["Order"]] = relationship(back_populates="parent_order", cascade="all, delete-orphan")
     items: Mapped[list["OrderItem"]] = relationship(back_populates="order", cascade="all, delete-orphan")
+    payments: Mapped[list["Payment"]] = relationship(back_populates="order", cascade="all, delete-orphan")

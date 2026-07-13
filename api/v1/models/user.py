@@ -22,7 +22,16 @@ class User(Base):
     last_login_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
+    # Paystack customer + Titan dedicated virtual account (pay-with-transfer)
+    paystack_customer_code: Mapped[Optional[str]] = mapped_column(String(50), unique=True, nullable=True)
+    paystack_dva_id: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    paystack_dva_account_number: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    paystack_dva_account_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    paystack_dva_bank_name: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    paystack_dva_bank_slug: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+
     orders: Mapped[list["Order"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    payments: Mapped[list["Payment"]] = relationship(back_populates="user", cascade="all, delete-orphan")
     scheduled_meals: Mapped[list["ScheduledMeal"]] = relationship(back_populates="user", cascade="all, delete-orphan")
     grocery_subscriptions: Mapped[list["GrocerySubscription"]] = relationship(back_populates="user", cascade="all, delete-orphan")
 

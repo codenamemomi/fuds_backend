@@ -28,6 +28,7 @@ fuds_backend/
 │       │   ├── product.py          # Vendor items (dishes, groceries)
 │       │   ├── order.py            # Orders and parent-suborder relations
 │       │   ├── order_item.py       # Order products and quantities
+│       │   ├── payment.py          # Paystack payment attempts
 │       │   ├── scheduled_meal.py   # Pre-scheduled "111" meals (breakfast, lunch, dinner)
 │       │   ├── marketplace.py      # Grocery roster subscriptions
 │       │   └── analytics_summary.py # Dataclass representing operations dashboard metrics
@@ -36,6 +37,7 @@ fuds_backend/
 │       │   ├── vendor.py
 │       │   ├── product.py
 │       │   ├── order.py
+│       │   ├── payment.py
 │       │   ├── scheduled_meal.py
 │       │   ├── marketplace.py
 │       │   └── analytics.py
@@ -44,6 +46,7 @@ fuds_backend/
 │       │   ├── vendor.py
 │       │   ├── product.py
 │       │   ├── order.py
+│       │   ├── payment.py          # Paystack initialize / verify / webhook
 │       │   ├── cart.py             # Redis-backed shopping cart logic
 │       │   ├── scheduled_meal.py
 │       │   ├── marketplace.py
@@ -53,6 +56,7 @@ fuds_backend/
 │           ├── browse.py           # Vendor directory and product listings
 │           ├── cart.py             # Add, view, and clear cart endpoints
 │           ├── orders.py           # Checkout and order listings
+│           ├── payments.py         # Paystack payments + webhook
 │           └── analytics.py        # Dashboard stats and order revenue CSV export
 ├── scripts/                # Administrative & seeding scripts
 │   └── seed_db.py          # Seeds the database with mock vendors, products, and categories
@@ -61,6 +65,7 @@ fuds_backend/
 │   ├── test_models.py      # Models integrity tests
 │   ├── test_user_auth.py   # Registration, login, OTP workflow tests
 │   ├── test_browse_commerce.py # Browse and order workflow tests
+│   ├── test_payments.py    # Paystack payment service + webhook tests
 │   └── test_analytics.py   # Stats summary and CSV export tests
 ├── main.py                 # FastAPI Application entry point and Middleware configuration
 ├── requirements.txt        # Python package dependencies
@@ -90,7 +95,42 @@ Create a `.env` file in the root directory (based on settings specified in `api/
 APP_NAME="FUDS Backend"
 DATABASE_URL="postgresql://user:password@localhost/fuds_db"
 REDIS_URL="redis://localhost:6379/0"
+SECRET_KEY="change-me"
+
+# Paystack (https://dashboard.paystack.com/#/settings/developer)
+PAYSTACK_SECRET_KEY="sk_test_xxx"
+PAYSTACK_PUBLIC_KEY="pk_test_xxx"
+PAYSTACK_BASE_URL="https://api.paystack.co"
+PAYSTACK_CALLBACK_URL="http://localhost:8000/api/v1/payments/callback"
+PAYSTACK_CURRENCY="NGN"
 ```
+
+### Payments (Paystack)
+
+After checkout creates a parent order:
+
+#### Card / hosted checkout
+1. `POST /api/v1/payments/initialize` `{ "order_id": <parent_order_id> }` → `authorization_url`
+2. Open `authorization_url` (browser / WebView)
+3. `GET /api/v1/payments/verify/{reference}` to confirm (or rely on webhook)
+
+#### Bank transfer (Paystack Titan)
+1. `POST /api/v1/payments/transfer/initialize` `{ "order_id": <parent_order_id> }`
+2. Response includes Titan virtual account (`account_number`, `bank_name`, `account_name`) and exact `amount`
+3. Customer transfers **exact** amount from any Nigerian bank
+4. Paystack webhook `charge.success` (`channel: dedicated_nuban`) confirms payment  
+   Matched by reference, or by `customer_code` + amount for DVA credits
+
+#### Webhook
+`POST /api/v1/payments/webhook` — set this URL in Paystack dashboard; signature verified via `x-paystack-signature`.
+
+Env:
+```env
+PAYSTACK_SECRET_KEY=sk_test_xxx
+PAYSTACK_TRANSFER_BANK=titan-paystack
+```
+
+On success, the payment row is `success` and the parent order + sub-orders get `payment_status=paid` and `status=confirmed`.
 
 ### 2. Database Migrations
 Apply database schema modifications to your active PostgreSQL instance using Alembic:

@@ -24,5 +24,18 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24
 
+    # ── Paystack ──────────────────────────────────────────────────────────────
+    # Get keys from https://dashboard.paystack.com/#/settings/developer
+    PAYSTACK_SECRET_KEY: str = ""
+    PAYSTACK_PUBLIC_KEY: str = ""
+    PAYSTACK_BASE_URL: str = "https://api.paystack.co"
+    # Default browser redirect after hosted checkout (mobile deep link or web URL)
+    PAYSTACK_CALLBACK_URL: str = "https://fuds.app/payment/callback"
+    # Currency ISO code; Paystack Nigeria uses NGN (amount sent in kobo)
+    PAYSTACK_CURRENCY: str = "NGN"
+    # Dedicated Virtual Account provider for pay-with-transfer (Paystack Titan)
+    # See: preferred_bank on POST /dedicated_account — "titan-paystack"
+    PAYSTACK_TRANSFER_BANK: str = "titan-paystack"
+
 
 settings = Settings()

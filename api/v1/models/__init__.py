@@ -5,6 +5,7 @@ from api.v1.models.base_class import Base
 from api.v1.models.marketplace import GrocerySubscription, Marketplace, MarketplaceFrequency
 from api.v1.models.order import Order
 from api.v1.models.order_item import OrderItem
+from api.v1.models.payment import Payment, PaymentMethod, PaymentProvider, PaymentStatus
 from api.v1.models.product import Product, ProductCategory
 from api.v1.models.scheduled_meal import MealType, ScheduledMeal
 from api.v1.models.user import User
@@ -17,6 +18,10 @@ __all__ = [
     "Product",
     "Order",
     "OrderItem",
+    "Payment",
+    "PaymentStatus",
+    "PaymentProvider",
+    "PaymentMethod",
     "ScheduledMeal",
     "MealType",
     "GrocerySubscription",
