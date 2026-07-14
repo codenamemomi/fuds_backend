@@ -33,8 +33,8 @@ class Settings(BaseSettings):
     PAYSTACK_CALLBACK_URL: str = "https://fuds.app/payment/callback"
     # Currency ISO code; Paystack Nigeria uses NGN (amount sent in kobo)
     PAYSTACK_CURRENCY: str = "NGN"
-    # Dedicated Virtual Account provider for pay-with-transfer (Paystack Titan)
-    # See: preferred_bank on POST /dedicated_account — "titan-paystack"
+    # Deprecated: was for Titan Dedicated NUBAN. Bank transfer now uses
+    # Initialize Transaction with channels=["bank_transfer"] only.
     PAYSTACK_TRANSFER_BANK: str = "titan-paystack"
 
 

@@ -114,12 +114,11 @@ After checkout creates a parent order:
 2. Open `authorization_url` (browser / WebView)
 3. `GET /api/v1/payments/verify/{reference}` to confirm (or rely on webhook)
 
-#### Bank transfer (Paystack Titan)
+#### Bank transfer (standard Pay with Transfer — no Dedicated NUBAN)
 1. `POST /api/v1/payments/transfer/initialize` `{ "order_id": <parent_order_id> }`
-2. Response includes Titan virtual account (`account_number`, `bank_name`, `account_name`) and exact `amount`
-3. Customer transfers **exact** amount from any Nigerian bank
-4. Paystack webhook `charge.success` (`channel: dedicated_nuban`) confirms payment  
-   Matched by reference, or by `customer_code` + amount for DVA credits
+2. Response includes `authorization_url` (Initialize Transaction with `channels: ["bank_transfer"]`)
+3. Open `authorization_url` — Paystack shows a **temporary** transfer account for that checkout
+4. Customer transfers via their bank app; webhook `charge.success` (`channel: bank_transfer`) or client `verify` confirms payment
 
 #### Webhook
 `POST /api/v1/payments/webhook` — set this URL in Paystack dashboard; signature verified via `x-paystack-signature`.
@@ -127,7 +126,6 @@ After checkout creates a parent order:
 Env:
 ```env
 PAYSTACK_SECRET_KEY=sk_test_xxx
-PAYSTACK_TRANSFER_BANK=titan-paystack
 ```
 
 On success, the payment row is `success` and the parent order + sub-orders get `payment_status=paid` and `status=confirmed`.

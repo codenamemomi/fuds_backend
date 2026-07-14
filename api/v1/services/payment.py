@@ -3,15 +3,15 @@ Paystack payment service.
 
 Supported methods:
   1. Card / hosted checkout — POST /transaction/initialize → authorization_url
-  2. Bank transfer (Paystack Titan DVA) — create customer + dedicated virtual account
-     on preferred_bank=titan-paystack; customer transfers exact order amount
+  2. Bank transfer (standard Pay with Transfer) — same Initialize Transaction API
+     with channels=["bank_transfer"]. Paystack shows a temporary transfer account
+     on the hosted checkout page (no Dedicated NUBAN / Titan DVA).
 
 Flow (transfer):
   1. Checkout → parent Order (payment_status=pending)
-  2. Client POST /payments/transfer/initialize → Titan account details
-  3. Customer bank-transfers exact amount to that account
-  4. Webhook charge.success (channel dedicated_nuban / bank_transfer)
-     matched by reference, or by customer_code + amount for DVA credits
+  2. Client POST /payments/transfer/initialize → authorization_url
+  3. Customer opens hosted page, transfers to the temporary account Paystack shows
+  4. Webhook charge.success (channel bank_transfer) or client verify confirms payment
   5. Payment + parent/sub-orders marked paid
 """
 
@@ -50,15 +50,6 @@ logger = logging.getLogger(__name__)
 def naira_to_kobo(amount_naira: float) -> int:
     """Paystack expects integer kobo (NGN * 100)."""
     return int(round(float(amount_naira) * 100))
-
-
-def _split_fullname(fullname: str) -> tuple[str, str]:
-    parts = (fullname or "Customer").strip().split()
-    if not parts:
-        return "Customer", "User"
-    if len(parts) == 1:
-        return parts[0], "User"
-    return parts[0], " ".join(parts[1:])
 
 
 class PaymentService:
@@ -164,7 +155,7 @@ class PaymentService:
         self.db.refresh(payment)
         return self._to_initialize_response(payment)
 
-    # ─── Public API: Titan bank transfer ──────────────────────────────────────
+    # ─── Public API: bank transfer (Pay with Transfer, no Dedicated NUBAN) ────
 
     def initialize_bank_transfer(
         self,
@@ -172,18 +163,17 @@ class PaymentService:
         payload: InitializeTransferRequest,
     ) -> InitializeTransferResponse:
         """
-        Provision (or reuse) a Paystack Titan dedicated virtual account and
-        open a pending payment for the order amount.
+        Start standard Paystack Pay with Transfer via Initialize Transaction.
+
+        Sends channels=["bank_transfer"] so checkout only offers bank transfer.
+        Paystack generates a temporary transfer account on the hosted page —
+        no Dedicated NUBAN / Titan DVA provisioning.
         """
         self._ensure_configured()
 
         order = self._get_payable_order(payload.order_id, user.id)
         self._assert_order_unpaid(order)
-        email = self._require_email(user)
-        amount = self._require_positive_amount(order)
-        amount_kobo = naira_to_kobo(amount)
 
-        # Reuse pending transfer payment for this order if DVA already attached
         existing = (
             self.db.query(Payment)
             .filter(
@@ -191,18 +181,20 @@ class PaymentService:
                 Payment.user_id == user.id,
                 Payment.status == PaymentStatus.PENDING.value,
                 Payment.payment_method == PaymentMethod.BANK_TRANSFER.value,
-                Payment.account_number.isnot(None),
+                Payment.authorization_url.isnot(None),
             )
             .order_by(Payment.created_at.desc())
             .first()
         )
-        if existing and existing.account_number:
+        if existing and existing.authorization_url and existing.access_code:
             return self._to_transfer_response(existing)
 
-        customer_code = self._ensure_paystack_customer(user)
-        dva = self._ensure_titan_dva(user, customer_code)
-
+        email = self._require_email(user)
+        amount = self._require_positive_amount(order)
+        amount_kobo = naira_to_kobo(amount)
         reference = self._generate_reference(order.id, prefix="fuds_trf")
+        callback_url = payload.callback_url or settings.PAYSTACK_CALLBACK_URL
+
         payment = Payment(
             user_id=user.id,
             order_id=order.id,
@@ -213,35 +205,69 @@ class PaymentService:
             payment_method=PaymentMethod.BANK_TRANSFER.value,
             reference=reference,
             status=PaymentStatus.PENDING.value,
-            channel="dedicated_nuban",
-            account_number=dva["account_number"],
-            account_name=dva["account_name"],
-            bank_name=dva["bank_name"],
-            bank_slug=dva.get("bank_slug") or settings.PAYSTACK_TRANSFER_BANK,
-            paystack_customer_code=customer_code,
+            channel="bank_transfer",
             metadata_json={
                 "order_id": order.id,
                 "user_id": user.id,
+                "callback_url": callback_url,
                 "payment_method": PaymentMethod.BANK_TRANSFER.value,
-                "preferred_bank": settings.PAYSTACK_TRANSFER_BANK,
-                "paystack_customer_code": customer_code,
-                "dva_id": dva.get("dva_id"),
+                "channels": ["bank_transfer"],
             },
             created_at=datetime.utcnow(),
             updated_at=datetime.utcnow(),
         )
         self.db.add(payment)
         self.db.flush()
+
+        body = {
+            "email": email,
+            "amount": amount_kobo,
+            "currency": settings.PAYSTACK_CURRENCY,
+            "reference": reference,
+            "callback_url": callback_url,
+            # Standard Pay with Transfer — temporary account on hosted checkout
+            "channels": ["bank_transfer"],
+            "metadata": {
+                "order_id": order.id,
+                "user_id": user.id,
+                "payment_id": payment.id,
+                "payment_method": PaymentMethod.BANK_TRANSFER.value,
+                "custom_fields": [
+                    {
+                        "display_name": "Order ID",
+                        "variable_name": "order_id",
+                        "value": str(order.id),
+                    },
+                    {
+                        "display_name": "Customer",
+                        "variable_name": "customer_name",
+                        "value": user.fullname,
+                    },
+                ],
+            },
+        }
+
+        try:
+            data = self._paystack_request("POST", "/transaction/initialize", json_body=body)
+        except HTTPException:
+            self.db.rollback()
+            raise
+
+        payment.access_code = data.get("access_code")
+        payment.authorization_url = data.get("authorization_url")
+        if data.get("reference"):
+            payment.reference = data["reference"]
+        payment.raw_response = data
+        payment.updated_at = datetime.utcnow()
         payment.metadata_json = {**(payment.metadata_json or {}), "payment_id": payment.id}
+
         self.db.commit()
         self.db.refresh(payment)
 
         logger.info(
-            "Initialized Titan transfer payment %s for order %s → %s @ %s",
+            "Initialized bank_transfer payment %s for order %s (hosted checkout)",
             payment.reference,
             order.id,
-            payment.account_number,
-            payment.bank_name,
         )
         return self._to_transfer_response(payment)
 
@@ -253,9 +279,8 @@ class PaymentService:
         """
         Confirm a transaction with Paystack and update local payment + order.
 
-        Card payments: verify by our reference via /transaction/verify.
-        Transfer (Titan DVA): also check local state; optional verify if we have
-        a provider transaction id. Polling clients should call this after transfer.
+        Works for card and bank_transfer (same /transaction/verify reference).
+        Clients should call this after the user closes the hosted checkout.
         """
         self._ensure_configured()
 
@@ -279,24 +304,20 @@ class PaymentService:
                 message="Payment already confirmed",
             )
 
-        # For bank transfer DVA, funds may only be visible via webhook.
-        # Still attempt transaction verify when Paystack knows the reference.
         try:
             data = self._paystack_request("GET", f"/transaction/verify/{reference}")
             payment = self._apply_paystack_transaction(payment, data)
         except HTTPException as exc:
-            if payment.payment_method == PaymentMethod.BANK_TRANSFER.value:
-                # DVA credits often use Paystack-generated references — keep pending
-                if exc.status_code == 502:
-                    order = self.db.query(Order).filter(Order.id == payment.order_id).first()
-                    return VerifyPaymentResponse(
-                        payment=PaymentRead.model_validate(payment),
-                        order_payment_status=order.payment_status if order else "pending",
-                        message=(
-                            "Transfer not confirmed yet. Pay exact amount to the Titan account; "
-                            "status updates via webhook when funds arrive."
-                        ),
-                    )
+            if payment.payment_method == PaymentMethod.BANK_TRANSFER.value and exc.status_code == 502:
+                order = self.db.query(Order).filter(Order.id == payment.order_id).first()
+                return VerifyPaymentResponse(
+                    payment=PaymentRead.model_validate(payment),
+                    order_payment_status=order.payment_status if order else "pending",
+                    message=(
+                        "Transfer not confirmed yet. Complete payment on the Paystack page "
+                        "(temporary account). Status updates when funds arrive or you verify again."
+                    ),
+                )
             raise
 
         order = self.db.query(Order).filter(Order.id == payment.order_id).first()
@@ -315,7 +336,7 @@ class PaymentService:
     def handle_webhook(self, raw_body: bytes, signature: Optional[str]) -> dict[str, str]:
         """
         Process Paystack webhook (HMAC SHA512).
-        Handles charge.success for card + dedicated_nuban / bank_transfer.
+        Handles charge.success for card and bank_transfer.
         """
         self._ensure_configured()
 
@@ -340,9 +361,8 @@ class PaymentService:
             payment = self._resolve_payment_from_charge(data)
             if not payment:
                 logger.warning(
-                    "Webhook charge.success unmatched ref=%s customer=%s amount=%s",
+                    "Webhook charge.success unmatched ref=%s amount=%s",
                     data.get("reference"),
-                    (data.get("customer") or {}).get("customer_code"),
                     data.get("amount"),
                 )
                 return {"status": "ok", "message": "ignored: payment not found"}
@@ -364,11 +384,6 @@ class PaymentService:
                 payment.updated_at = datetime.utcnow()
                 self.db.commit()
             return {"status": "ok", "message": f"{event} processed"}
-
-        # DVA lifecycle events — log only
-        if event and event.startswith("dedicatedaccount."):
-            logger.info("DVA event %s: %s", event, data.get("account_number") or data.get("id"))
-            return {"status": "ok", "message": f"ignored event: {event}"}
 
         return {"status": "ok", "message": f"ignored event: {event}"}
 
@@ -397,112 +412,6 @@ class PaymentService:
         digest = hmac.new(secret, raw_body, hashlib.sha512).hexdigest()
         return hmac.compare_digest(digest, signature)
 
-    # ─── Paystack customer + Titan DVA ────────────────────────────────────────
-
-    def _ensure_paystack_customer(self, user: User) -> str:
-        if user.paystack_customer_code:
-            return user.paystack_customer_code
-
-        email = self._require_email(user)
-        first_name, last_name = _split_fullname(user.fullname)
-        phone = user.phone or ""
-
-        body: dict[str, Any] = {
-            "email": email,
-            "first_name": first_name,
-            "last_name": last_name,
-            "metadata": {"user_id": user.id, "platform": "fuds"},
-        }
-        if phone:
-            body["phone"] = phone
-
-        try:
-            data = self._paystack_request("POST", "/customer", json_body=body)
-        except HTTPException as exc:
-            # Customer may already exist on Paystack — fetch by email
-            if "already" in str(exc.detail).lower() or "exist" in str(exc.detail).lower():
-                data = self._paystack_request("GET", f"/customer/{email}")
-            else:
-                raise
-
-        # GET /customer/:email returns customer object; create returns same
-        customer_code = data.get("customer_code")
-        if not customer_code and isinstance(data.get("customer"), dict):
-            customer_code = data["customer"].get("customer_code")
-        if not customer_code:
-            raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY,
-                detail="Paystack did not return a customer_code",
-            )
-
-        user.paystack_customer_code = customer_code
-        self.db.commit()
-        self.db.refresh(user)
-        return customer_code
-
-    def _ensure_titan_dva(self, user: User, customer_code: str) -> dict[str, str]:
-        """
-        Create or reuse a Titan dedicated virtual account for the user.
-
-        preferred_bank defaults to settings.PAYSTACK_TRANSFER_BANK (titan-paystack).
-        """
-        if (
-            user.paystack_dva_account_number
-            and user.paystack_dva_bank_name
-            and user.paystack_dva_account_name
-        ):
-            return {
-                "account_number": user.paystack_dva_account_number,
-                "account_name": user.paystack_dva_account_name,
-                "bank_name": user.paystack_dva_bank_name,
-                "bank_slug": user.paystack_dva_bank_slug or settings.PAYSTACK_TRANSFER_BANK,
-                "dva_id": user.paystack_dva_id or "",
-            }
-
-        first_name, last_name = _split_fullname(user.fullname)
-        preferred_bank = settings.PAYSTACK_TRANSFER_BANK
-
-        body: dict[str, Any] = {
-            "customer": customer_code,
-            "preferred_bank": preferred_bank,
-            "first_name": first_name,
-            "last_name": last_name,
-        }
-        if user.phone:
-            body["phone"] = user.phone
-
-        data = self._paystack_request("POST", "/dedicated_account", json_body=body)
-
-        # Response shape: account_number, account_name, bank: { name, slug, id }, id, ...
-        account_number = data.get("account_number")
-        account_name = data.get("account_name") or user.fullname
-        bank = data.get("bank") or {}
-        bank_name = bank.get("name") or data.get("bank_name") or "Titan Paystack"
-        bank_slug = bank.get("slug") or preferred_bank
-        dva_id = str(data.get("id") or data.get("dedicated_account_id") or "")
-
-        if not account_number:
-            raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY,
-                detail="Paystack Titan did not return an account_number",
-            )
-
-        user.paystack_dva_id = dva_id or None
-        user.paystack_dva_account_number = account_number
-        user.paystack_dva_account_name = account_name
-        user.paystack_dva_bank_name = bank_name
-        user.paystack_dva_bank_slug = bank_slug
-        self.db.commit()
-        self.db.refresh(user)
-
-        return {
-            "account_number": account_number,
-            "account_name": account_name,
-            "bank_name": bank_name,
-            "bank_slug": bank_slug,
-            "dva_id": dva_id,
-        }
-
     def _resolve_payment_from_charge(self, data: dict[str, Any]) -> Optional[Payment]:
         """
         Match webhook charge payload to a local Payment.
@@ -510,8 +419,7 @@ class PaymentService:
         Order of attempts:
           1. Exact reference match
           2. metadata.payment_id / metadata.order_id
-          3. pending bank_transfer by customer_code + amount_kobo (Titan DVA)
-          4. pending bank_transfer by user email + amount_kobo
+          3. pending payment by user email + amount_kobo (fallback)
         """
         reference = data.get("reference")
         if reference:
@@ -523,48 +431,34 @@ class PaymentService:
         if isinstance(metadata, dict):
             payment_id = metadata.get("payment_id")
             if payment_id:
-                payment = self.db.query(Payment).filter(Payment.id == int(payment_id)).first()
+                try:
+                    payment = self.db.query(Payment).filter(Payment.id == int(payment_id)).first()
+                except (TypeError, ValueError):
+                    payment = None
                 if payment:
                     return payment
             order_id = metadata.get("order_id")
             if order_id:
-                payment = (
-                    self.db.query(Payment)
-                    .filter(
-                        Payment.order_id == int(order_id),
-                        Payment.status == PaymentStatus.PENDING.value,
+                try:
+                    oid = int(order_id)
+                except (TypeError, ValueError):
+                    oid = None
+                if oid is not None:
+                    payment = (
+                        self.db.query(Payment)
+                        .filter(
+                            Payment.order_id == oid,
+                            Payment.status == PaymentStatus.PENDING.value,
+                        )
+                        .order_by(Payment.created_at.desc())
+                        .first()
                     )
-                    .order_by(Payment.created_at.desc())
-                    .first()
-                )
-                if payment:
-                    return payment
+                    if payment:
+                        return payment
 
         amount_kobo = data.get("amount")
         customer = data.get("customer") or {}
-        customer_code = customer.get("customer_code")
         email = customer.get("email")
-
-        if amount_kobo is not None and customer_code:
-            payment = (
-                self.db.query(Payment)
-                .filter(
-                    Payment.status == PaymentStatus.PENDING.value,
-                    Payment.payment_method == PaymentMethod.BANK_TRANSFER.value,
-                    Payment.amount_kobo == int(amount_kobo),
-                    Payment.paystack_customer_code == customer_code,
-                )
-                .order_by(Payment.created_at.asc())
-                .first()
-            )
-            if payment:
-                # Store Paystack's charge reference for future lookups
-                if reference and payment.reference != reference:
-                    payment.metadata_json = {
-                        **(payment.metadata_json or {}),
-                        "paystack_charge_reference": reference,
-                    }
-                return payment
 
         if amount_kobo is not None and email:
             user = self.db.query(User).filter(User.email == email).first()
@@ -574,7 +468,6 @@ class PaymentService:
                     .filter(
                         Payment.user_id == user.id,
                         Payment.status == PaymentStatus.PENDING.value,
-                        Payment.payment_method == PaymentMethod.BANK_TRANSFER.value,
                         Payment.amount_kobo == int(amount_kobo),
                     )
                     .order_by(Payment.created_at.asc())
@@ -789,31 +682,37 @@ class PaymentService:
 
     @staticmethod
     def _to_transfer_response(payment: Payment) -> InitializeTransferResponse:
-        account_number = payment.account_number or ""
-        account_name = payment.account_name or ""
-        bank_name = payment.bank_name or "Titan Paystack"
         amount_fmt = f"₦{float(payment.amount):,.2f}"
         instructions = (
-            f"Transfer exactly {amount_fmt} to the account below. "
-            f"Use any Nigerian bank app. Your order is confirmed automatically once funds arrive. "
-            f"Reference for support: {payment.reference}."
+            f"Open the Paystack checkout and pay {amount_fmt} via bank transfer. "
+            f"Paystack will show a temporary account for this payment. "
+            f"Your order confirms automatically once the transfer succeeds. "
+            f"Reference: {payment.reference}."
         )
+        account = None
+        if payment.account_number:
+            account = TransferAccountDetails(
+                account_number=payment.account_number,
+                account_name=payment.account_name or "",
+                bank_name=payment.bank_name or "",
+                bank_slug=payment.bank_slug,
+            )
         return InitializeTransferResponse(
             payment_id=payment.id,
             order_id=payment.order_id,
             reference=payment.reference,
+            access_code=payment.access_code or "",
+            authorization_url=payment.authorization_url or "",
             amount=float(payment.amount),
             amount_kobo=payment.amount_kobo,
             currency=payment.currency,
             status=payment.status,
             payment_method=PaymentMethod.BANK_TRANSFER.value,
-            channel="dedicated_nuban",
-            account=TransferAccountDetails(
-                account_number=account_number,
-                account_name=account_name,
-                bank_name=bank_name,
-                bank_slug=payment.bank_slug,
-            ),
+            channel="bank_transfer",
+            account=account,
             instructions=instructions,
-            expires_hint="Account is permanent for this customer; always pay the exact order amount.",
+            expires_hint=(
+                "Complete transfer on the Paystack page; the temporary account expires "
+                "after the checkout session."
+            ),
         )

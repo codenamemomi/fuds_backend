@@ -65,24 +65,31 @@ def get_vendor_detail(
 
 # ─── Products ─────────────────────────────────────────────────────────────────
 
-@router.get("/products", response_model=list[ProductRead])
+@router.get("/products", response_model=list[ProductWithVendor])
 def list_products(
     vendor_id: Optional[int] = Query(None, description="Filter by vendor"),
     category: Optional[str] = Query(None, description="Fine-grained product category"),
     group: Optional[str] = Query(None, description="Browse group: food, grocery, shops, …"),
-    name: Optional[str] = Query(None, description="Search product name"),
+    name: Optional[str] = Query(
+        None,
+        description="Search product / meal name (case-insensitive contains). Use for typeahead.",
+    ),
+    search: Optional[str] = Query(
+        None,
+        description="Alias for `name` — meal search / typeahead",
+    ),
     min_price: Optional[float] = Query(None, ge=0, description="Minimum price (Naira)"),
     max_price: Optional[float] = Query(None, ge=0, description="Maximum price (Naira)"),
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
     service: BrowseService = Depends(get_browse_service),
 ):
-    """Browse products across all vendors with flexible filters."""
+    """Browse products across all vendors. Pass `name` or `search` for meal typeahead."""
     return service.list_products(
         vendor_id=vendor_id,
         category=category,
         group=group,
-        name=name,
+        name=name or search,
         min_price=min_price,
         max_price=max_price,
         page=page,

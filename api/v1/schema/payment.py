@@ -1,4 +1,4 @@
-"""Pydantic schemas for Paystack payments (card + Titan bank transfer)."""
+"""Pydantic schemas for Paystack payments (card + bank transfer)."""
 
 from datetime import datetime
 from typing import Any, Optional
@@ -35,15 +35,23 @@ class InitializePaymentResponse(BaseModel):
 
 class InitializeTransferRequest(BaseModel):
     """
-    Start a pay-with-transfer payment via Paystack Titan dedicated virtual account.
+    Start standard Paystack Pay with Transfer via Initialize Transaction.
 
-    Client shows account_number / bank_name / amount; customer transfers from any bank.
+    Uses channels=["bank_transfer"]. Client opens authorization_url; Paystack
+    generates a temporary transfer account on the hosted checkout page.
+    No Dedicated NUBAN.
     """
 
     order_id: int = Field(..., ge=1)
+    callback_url: Optional[str] = Field(
+        default=None,
+        description="Where Paystack redirects after payment. Falls back to settings.",
+    )
 
 
 class TransferAccountDetails(BaseModel):
+    """Optional account snapshot if ever stored; normally shown only on Paystack UI."""
+
     account_number: str
     account_name: str
     bank_name: str
@@ -54,16 +62,17 @@ class InitializeTransferResponse(BaseModel):
     payment_id: int
     order_id: int
     reference: str
+    access_code: str
+    authorization_url: str
     amount: float
     amount_kobo: int
     currency: str
     status: str
     payment_method: str = "bank_transfer"
-    channel: str = "dedicated_nuban"
-    # What the customer should transfer to
-    account: TransferAccountDetails
+    channel: str = "bank_transfer"
     instructions: str
-    # Optional: when the payment intent should be treated as expired client-side
+    # Temporary account lives on Paystack checkout — not returned by initialize
+    account: Optional[TransferAccountDetails] = None
     expires_hint: Optional[str] = None
 
 

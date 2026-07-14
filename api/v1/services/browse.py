@@ -122,7 +122,11 @@ class BrowseService:
         max_price: Optional[float] = None,
         page: int = 1,
         limit: int = 20,
-    ) -> list[ProductRead]:
+    ) -> list[ProductWithVendor]:
+        """
+        Browse / search products. Always includes light vendor context so clients
+        can show typeahead rows (meal + restaurant) without a second request.
+        """
         query = self.db.query(Product)
 
         if vendor_id:
@@ -152,21 +156,30 @@ class BrowseService:
             query = query.filter(Product.category == cat_value)
 
         if name:
-            query = query.filter(Product.name.ilike(f"%{name}%"))
+            term = name.strip()
+            if term:
+                query = query.filter(Product.name.ilike(f"%{term}%"))
         if min_price is not None:
             query = query.filter(Product.price >= min_price)
         if max_price is not None:
             query = query.filter(Product.price <= max_price)
 
         offset = (page - 1) * limit
-        products = query.offset(offset).limit(limit).all()
-        return [ProductRead.model_validate(p) for p in products]
+        products = (
+            query.order_by(Product.name.asc())
+            .offset(offset)
+            .limit(limit)
+            .all()
+        )
+        return [self._product_with_vendor(p) for p in products]
 
     def get_product_detail(self, product_id: int) -> ProductWithVendor:
         product = self.db.query(Product).filter(Product.id == product_id).first()
         if not product:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found")
+        return self._product_with_vendor(product)
 
+    def _product_with_vendor(self, product: Product) -> ProductWithVendor:
         vendor = product.vendor
         data = ProductRead.model_validate(product).model_dump()
         return ProductWithVendor(

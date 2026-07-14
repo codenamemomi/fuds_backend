@@ -283,50 +283,67 @@ class TestWebhook:
         assert exc.value.status_code == 401
 
 
-class TestTitanBankTransfer:
-    def test_initialize_transfer_creates_dva_and_payment(self, db, user, order):
+class TestBankTransferInitialize:
+    def test_initialize_transfer_uses_channels_bank_transfer(self, db, user, order):
         service = PaymentService(db)
+        mock_data = {
+            "authorization_url": "https://checkout.paystack.com/trf_abc",
+            "access_code": "ACCESS_TRF",
+            "reference": f"fuds_trf_{order.id}_testref",
+        }
 
-        def fake_request(method, path, json_body=None):
-            if path == "/customer":
-                return {"customer_code": "CUS_titan_test", "email": user.email}
-            if path == "/dedicated_account":
-                assert json_body["preferred_bank"] == "titan-paystack"
-                assert json_body["customer"] == "CUS_titan_test"
-                return {
-                    "id": 999,
-                    "account_number": "9876543210",
-                    "account_name": "Pay Tester",
-                    "bank": {"name": "Titan Paystack", "slug": "titan-paystack"},
-                }
-            raise AssertionError(f"Unexpected Paystack call {method} {path}")
-
-        with patch.object(service, "_paystack_request", side_effect=fake_request):
+        with patch.object(service, "_paystack_request", return_value=mock_data) as mock_req:
             result = service.initialize_bank_transfer(
                 user, InitializeTransferRequest(order_id=order.id)
             )
 
-        assert result.payment_method == PaymentMethod.BANK_TRANSFER.value
-        assert result.account.account_number == "9876543210"
-        assert result.account.bank_name == "Titan Paystack"
-        assert result.amount_kobo == 250_000
-        assert "Transfer exactly" in result.instructions
+        mock_req.assert_called_once()
+        args, kwargs = mock_req.call_args
+        assert args[0] == "POST"
+        assert args[1] == "/transaction/initialize"
+        body = kwargs.get("json_body") or (args[2] if len(args) > 2 else None)
+        # Called as _paystack_request("POST", path, json_body=body)
+        call_kwargs = mock_req.call_args
+        json_body = call_kwargs.kwargs.get("json_body")
+        if json_body is None and len(call_kwargs.args) >= 3:
+            json_body = call_kwargs.args[2]
+        assert json_body is not None
+        assert json_body["channels"] == ["bank_transfer"]
+        assert json_body["amount"] == 250_000
 
-        db.refresh(user)
-        assert user.paystack_customer_code == "CUS_titan_test"
-        assert user.paystack_dva_account_number == "9876543210"
+        assert result.payment_method == PaymentMethod.BANK_TRANSFER.value
+        assert result.channel == "bank_transfer"
+        assert result.authorization_url == mock_data["authorization_url"]
+        assert result.access_code == "ACCESS_TRF"
+        assert result.amount_kobo == 250_000
+        assert result.account is None
+        assert "temporary" in result.instructions.lower() or "Paystack" in result.instructions
 
         payment = db.query(Payment).filter(Payment.order_id == order.id).first()
+        assert payment is not None
         assert payment.payment_method == PaymentMethod.BANK_TRANSFER.value
-        assert payment.account_number == "9876543210"
-        assert payment.paystack_customer_code == "CUS_titan_test"
+        assert payment.channel == "bank_transfer"
+        assert payment.authorization_url == mock_data["authorization_url"]
+        assert payment.account_number is None
 
-    def test_initialize_transfer_reuses_existing_dva(self, db, user, order):
-        user.paystack_customer_code = "CUS_existing"
-        user.paystack_dva_account_number = "1111222233"
-        user.paystack_dva_account_name = "Pay Tester"
-        user.paystack_dva_bank_name = "Titan Paystack"
-        user.paystack_dva_bank_slug = "titan-paystack"
+    def test_initialize_transfer_reuses_pending_checkout(self, db, user, order):
+        payment = Payment(
+            user_id=user.id,
+            order_id=order.id,
+            amount=2500.0,
+            amount_kobo=250_000,
+            currency="NGN",
+            provider="paystack",
+            payment_method=PaymentMethod.BANK_TRANSFER.value,
+            reference="fuds_trf_reuse",
+            access_code="OLD_ACCESS",
+            authorization_url="https://checkout.paystack.com/reuse",
+            status=PaymentStatus.PENDING.value,
+            channel="bank_transfer",
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow(),
+        )
+        db.add(payment)
         db.commit()
 
         service = PaymentService(db)
@@ -336,9 +353,10 @@ class TestTitanBankTransfer:
             )
 
         mock_req.assert_not_called()
-        assert result.account.account_number == "1111222233"
+        assert result.authorization_url == "https://checkout.paystack.com/reuse"
+        assert result.access_code == "OLD_ACCESS"
 
-    def test_webhook_matches_dva_by_customer_and_amount(self, db, user, order):
+    def test_webhook_bank_transfer_by_reference(self, db, user, order):
         payment = Payment(
             user_id=user.id,
             order_id=order.id,
@@ -349,32 +367,24 @@ class TestTitanBankTransfer:
             payment_method=PaymentMethod.BANK_TRANSFER.value,
             reference="fuds_trf_local_ref",
             status=PaymentStatus.PENDING.value,
-            channel="dedicated_nuban",
-            account_number="9876543210",
-            account_name="Pay Tester",
-            bank_name="Titan Paystack",
-            paystack_customer_code="CUS_titan_test",
+            channel="bank_transfer",
+            authorization_url="https://checkout.paystack.com/x",
             created_at=datetime.utcnow(),
             updated_at=datetime.utcnow(),
         )
         db.add(payment)
         db.commit()
 
-        # Paystack DVA charges often use a different gateway reference
         body = {
             "event": "charge.success",
             "data": {
                 "id": 555,
                 "status": "success",
                 "amount": 250_000,
-                "channel": "dedicated_nuban",
+                "channel": "bank_transfer",
                 "gateway_response": "Successful",
-                "reference": "paystack_auto_ref_xyz",
+                "reference": "fuds_trf_local_ref",
                 "paid_at": "2026-07-13T12:00:00.000Z",
-                "customer": {
-                    "customer_code": "CUS_titan_test",
-                    "email": "pay@example.com",
-                },
             },
         }
         raw = json.dumps(body).encode("utf-8")

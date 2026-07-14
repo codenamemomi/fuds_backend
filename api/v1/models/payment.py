@@ -27,7 +27,7 @@ class PaymentMethod(str, enum.Enum):
     """How the customer is expected to pay."""
 
     CARD = "card"  # hosted checkout / authorization_url
-    BANK_TRANSFER = "bank_transfer"  # Paystack Titan dedicated virtual account
+    BANK_TRANSFER = "bank_transfer"  # Initialize Transaction with channels=["bank_transfer"]
 
 
 class Payment(Base):
@@ -37,8 +37,8 @@ class Payment(Base):
     Amounts are stored in Naira on `amount` and kobo on `amount_kobo`
     (Paystack requires the smallest currency unit).
 
-    For bank_transfer (Titan DVA), account_* fields hold the virtual account
-    the customer should transfer into.
+    bank_transfer uses standard Pay with Transfer (hosted checkout); temporary
+    account is shown by Paystack. account_* fields are optional leftovers.
     """
 
     __tablename__ = "payments"
@@ -62,7 +62,7 @@ class Payment(Base):
     access_code: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     authorization_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
-    # Titan / dedicated virtual account (pay-with-transfer)
+    # Optional transfer account snapshot (not used for standard Pay with Transfer)
     account_number: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     account_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     bank_name: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
@@ -72,7 +72,7 @@ class Payment(Base):
     # Status
     status: Mapped[str] = mapped_column(String(30), default=PaymentStatus.PENDING.value, nullable=False, index=True)
     provider_status: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)  # e.g. success, failed, abandoned
-    channel: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)  # card, bank_transfer, dedicated_nuban
+    channel: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)  # card, bank_transfer
     gateway_response: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
 
     # Paystack / gateway IDs

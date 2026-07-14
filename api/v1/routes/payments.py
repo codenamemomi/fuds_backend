@@ -1,4 +1,4 @@
-"""Payment endpoints — Paystack card, Titan bank transfer, verify, webhook."""
+"""Payment endpoints — Paystack card, bank transfer, verify, webhook."""
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -73,11 +73,10 @@ def initialize_bank_transfer(
     service: PaymentService = Depends(get_payment_service),
 ):
     """
-    Pay with transfer via Paystack Titan dedicated virtual account.
+    Pay with Transfer via Paystack Initialize Transaction (channels=["bank_transfer"]).
 
-    Creates (or reuses) a Titan DVA for the customer and returns account details
-    so they can transfer the exact order amount from any Nigerian bank.
-    Confirmation is via Paystack webhook (`charge.success`).
+    Returns authorization_url for hosted checkout. Paystack generates a temporary
+    transfer account on that page — no Dedicated NUBAN. Confirm via verify or webhook.
     """
     return service.initialize_bank_transfer(current_user, payload)
 
@@ -89,8 +88,8 @@ def verify_payment(
     service: PaymentService = Depends(get_payment_service),
 ):
     """
-    Confirm payment status with Paystack (or local state for Titan transfers).
-    Updates payment + order when successful.
+    Confirm payment status with Paystack.
+    Updates payment + order when successful (card or bank_transfer).
     """
     return service.verify(reference, user_id=current_user.id)
 
@@ -104,8 +103,6 @@ async def paystack_webhook(
     """
     Paystack server-to-server webhook.
     Configure URL in dashboard: POST /api/v1/payments/webhook
-
-    Required for Titan DVA (dedicated_nuban) settlement.
     """
     raw = await request.body()
     result = service.handle_webhook(raw, x_paystack_signature)
