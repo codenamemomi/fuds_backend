@@ -104,3 +104,25 @@ def get_product_detail(
 ):
     """Get a single product's details including vendor context."""
     return service.get_product_detail(product_id)
+
+
+# ─── Cache Management ─────────────────────────────────────────────────────────
+
+@router.post("/cache/warm")
+def manual_warm_cache(service: BrowseService = Depends(get_browse_service)):
+    """
+    Manually triggers cache warming.
+    """
+    service.warm_cache()
+    return {"status": "success", "message": "Cache warming triggered"}
+
+
+@router.post("/cache/clear")
+def manual_clear_cache():
+    """
+    Clears all browse cache keys matching cache:browse:*
+    """
+    from api.utils.cache import clear_browse_cache
+    count = clear_browse_cache()
+    return {"status": "success", "message": f"Cleared {count} cache keys"}
+
