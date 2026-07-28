@@ -124,7 +124,6 @@ resend
 rich
 rlp
 rsa
-scikit-learn
 scipy
 sendgrid
 setuptools
