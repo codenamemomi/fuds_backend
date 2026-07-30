@@ -11,7 +11,7 @@ async-timeout
 attrs
 Authlib
 autopep8
-bcrypt
+bcrypt>=4.0.1
 billiard
 black
 bleach
@@ -82,7 +82,8 @@ numpy
 packaging
 pandas
 parsimonious
-passlib
+# passlib removed — unmaintained; incompatible with bcrypt>=4.1 on CI
+# (use bcrypt library directly in api/v1/services/user.py)
 pathspec
 pillow
 pipdeptree

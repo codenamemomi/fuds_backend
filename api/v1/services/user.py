@@ -1,8 +1,8 @@
 from datetime import datetime, timedelta
 
+import bcrypt
 import jwt
 from fastapi import HTTPException, status
-from passlib.context import CryptContext
 from sqlalchemy.orm import Session
 
 from api.utils.otp import OTPService
@@ -17,8 +17,6 @@ from api.v1.schema.user import (
     UserResendOTP,
 )
 from api.v1.services.base import BaseService
-
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 class UserService(BaseService[User, UserCreate, UserRead]):
@@ -127,11 +125,31 @@ class UserService(BaseService[User, UserCreate, UserRead]):
 
     @staticmethod
     def hash_password(password: str) -> str:
-        return pwd_context.hash(password)
+        """
+        Hash with the bcrypt library directly.
+
+        Avoids passlib: passlib is unmaintained and breaks on bcrypt>=4.1
+        (CI installs latest bcrypt → ValueError during wrap-bug detection).
+        Output remains standard bcrypt hashes ($2b$...), compatible with
+        hashes previously produced by passlib.
+        """
+        secret = password.encode("utf-8")
+        # bcrypt only uses the first 72 bytes; normal app passwords are fine
+        if len(secret) > 72:
+            secret = secret[:72]
+        return bcrypt.hashpw(secret, bcrypt.gensalt()).decode("utf-8")
 
     @staticmethod
     def verify_password(plain_password: str, hashed_password: str) -> bool:
-        return pwd_context.verify(plain_password, hashed_password)
+        if not hashed_password:
+            return False
+        try:
+            secret = plain_password.encode("utf-8")
+            if len(secret) > 72:
+                secret = secret[:72]
+            return bcrypt.checkpw(secret, hashed_password.encode("utf-8"))
+        except (ValueError, TypeError):
+            return False
 
     @staticmethod
     def _create_access_token(user: User) -> str:
