@@ -149,7 +149,8 @@ class TestCart:
 
     def test_cart_requires_auth(self, client):
         resp = client.get("/api/v1/cart")
-        assert resp.status_code == 403
+        # HTTPBearer: 401 when no credentials (403 on some older FastAPI builds)
+        assert resp.status_code in (401, 403)
 
     def test_clear_empty_cart(self, client):
         token = register_verify_login(client)
@@ -184,4 +185,4 @@ class TestOrders:
 
     def test_orders_requires_auth(self, client):
         resp = client.get("/api/v1/orders")
-        assert resp.status_code == 403
+        assert resp.status_code in (401, 403)
