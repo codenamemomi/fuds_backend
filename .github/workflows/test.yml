@@ -42,6 +42,10 @@ jobs:
           REDIS_URL: "redis://localhost:6379/0"
           CELERY_BROKER_URL: "redis://localhost:6379/0"
           CELERY_RESULT_BACKEND: "redis://localhost:6379/0"
+          # Email: console + sync so CI needs no Resend/SMTP and no worker
+          EMAIL_PROVIDER: "console"
+          EMAIL_ASYNC: "false"
+          EMAIL_FROM: "FUDS Tests <noreply@example.com>"
         run: |
           mkdir -p static
           pytest

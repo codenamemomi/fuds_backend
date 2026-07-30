@@ -103,7 +103,39 @@ PAYSTACK_PUBLIC_KEY="pk_test_xxx"
 PAYSTACK_BASE_URL="https://api.paystack.co"
 PAYSTACK_CALLBACK_URL="http://localhost:8000/api/v1/payments/callback"
 PAYSTACK_CURRENCY="NGN"
+
+# Email — registration OTP (Brevo)
+# console | brevo | smtp
+EMAIL_PROVIDER="brevo"
+EMAIL_FROM="FUDS <verified-sender@yourdomain.com>"
+EMAIL_ASYNC=false
+BREVO_API_KEY="xkeysib-xxx"   # https://app.brevo.com/settings/keys/api
+# SMTP_HOST=smtp-relay.brevo.com   # optional: EMAIL_PROVIDER=smtp
+# SMTP_PORT=587
+OTP_TTL_SECONDS=300
+OTP_RESEND_COOLDOWN_SECONDS=60
 ```
+
+### Registration email OTP
+
+Flow:
+1. `POST /api/v1/auth/register` → user row + OTP stored in **Redis** (`otp:registration:<email>`)
+2. OTP is **emailed** via `dispatch_registration_otp` (Celery queue when `EMAIL_ASYNC=true`)
+3. `POST /api/v1/auth/verify-otp` with `{ email, otp }` activates the account
+4. `POST /api/v1/auth/resend-otp` issues a new code (rate-limited by `OTP_RESEND_COOLDOWN_SECONDS`)
+
+**Scalable delivery**
+- HTTP workers only enqueue a Celery task (`fuds.send_registration_otp_email`)
+- Run one or more workers:  
+  `celery -A api.utils.celery_app.celery_app worker -l info`
+- Providers: `console` (dev/CI), **`brevo`** (Brevo transactional API), `smtp` (generic / Brevo SMTP)
+- If the broker is down, the app falls back to **inline send** so register still works
+
+**Brevo setup**
+1. Create an API key: [Brevo → SMTP & API → API keys](https://app.brevo.com/settings/keys/api)
+2. Verify a sender: [Senders & IPs](https://app.brevo.com/senders/domain/list) (or use your account email on free tier)
+3. Set `EMAIL_PROVIDER=brevo`, `BREVO_API_KEY=…`, `EMAIL_FROM=FUDS <that-verified-email>`
+4. Restart uvicorn after editing `.env`
 
 ### Payments (Paystack)
 

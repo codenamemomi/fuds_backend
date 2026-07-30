@@ -121,7 +121,7 @@ PyYAML
 redis
 regex
 requests
-resend
+# resend removed — use Brevo (sib-api-v3-sdk) for transactional email
 rich
 rlp
 rsa

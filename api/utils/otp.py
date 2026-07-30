@@ -5,12 +5,13 @@ from datetime import datetime, timedelta
 from typing import Any
 
 from api.utils.redis_utils import redis_client
+from api.utils.settings import settings
 
 
 class OTPService:
-    def __init__(self, length: int = 6, ttl_seconds: int = 300):
+    def __init__(self, length: int = 6, ttl_seconds: int | None = None):
         self.length = length
-        self.ttl_seconds = ttl_seconds
+        self.ttl_seconds = ttl_seconds if ttl_seconds is not None else settings.OTP_TTL_SECONDS
 
     def _build_key(self, purpose: str, identifier: str) -> str:
         return f"otp:{purpose}:{identifier}"

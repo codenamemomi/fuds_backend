@@ -37,5 +37,29 @@ class Settings(BaseSettings):
     # Initialize Transaction with channels=["bank_transfer"] only.
     PAYSTACK_TRANSFER_BANK: str = "titan-paystack"
 
+    # ── Email (registration OTP & transactional) ──────────────────────────────
+    # provider: console | brevo | smtp
+    #   console — log only (local / CI tests; no network)
+    #   brevo   — Brevo transactional API (https://app.brevo.com)
+    #   smtp    — generic SMTP (Gmail, SES, Mailgun, etc.)
+    EMAIL_PROVIDER: str = "console"
+    EMAIL_FROM: str = "FUDS <noreply@example.com>"
+    EMAIL_REPLY_TO: str = ""
+    # When True, enqueue Celery task (scales out with workers). Falls back to
+    # inline send if the broker is unreachable so register never 500s on email.
+    EMAIL_ASYNC: bool = True
+    # Brevo (Sendinblue) — API key from https://app.brevo.com/settings/keys/api
+    BREVO_API_KEY: str = ""
+    # SMTP
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_USE_TLS: bool = True
+    # OTP delivery
+    OTP_TTL_SECONDS: int = 300
+    OTP_RESEND_COOLDOWN_SECONDS: int = 60
+    APP_PUBLIC_NAME: str = "FUDS"
+
 
 settings = Settings()
