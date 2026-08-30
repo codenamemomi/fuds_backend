@@ -57,6 +57,7 @@ fuds_backend/
 │           ├── cart.py             # Add, view, and clear cart endpoints
 │           ├── orders.py           # Checkout and order listings
 │           ├── payments.py         # Paystack payments + webhook
+│           ├── schedule.py         # 111 meal planner (Mon–Sun, breakfast/lunch/dinner windows)
 │           └── analytics.py        # Dashboard stats and order revenue CSV export
 ├── scripts/                # Administrative & seeding scripts
 │   └── seed_db.py          # Seeds the database with mock vendors, products, and categories

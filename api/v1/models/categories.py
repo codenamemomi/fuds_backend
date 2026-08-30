@@ -100,6 +100,63 @@ def vendor_categories_for_group(group: str | BrowseGroup) -> list[str]:
     return []
 
 
+class GroceryAisleMeta(TypedDict):
+    key: str
+    label: str
+    subtitle: str
+    icon: str
+
+
+GROCERY_AISLES: list[GroceryAisleMeta] = [
+    {
+        "key": "beverages",
+        "label": "Drinks & Milo",
+        "subtitle": "Milo, tea, juice",
+        "icon": "cafe",
+    },
+    {
+        "key": "dairy",
+        "label": "Milk & Dairy",
+        "subtitle": "Peak, eggs, yoghurt",
+        "icon": "water",
+    },
+    {
+        "key": "cereals",
+        "label": "Cereals",
+        "subtitle": "Golden Morn, oats",
+        "icon": "nutrition",
+    },
+    {
+        "key": "staples",
+        "label": "Staples",
+        "subtitle": "Rice, oil, noodles",
+        "icon": "basket",
+    },
+    {
+        "key": "fresh",
+        "label": "Fresh produce",
+        "subtitle": "Veggies, tubers",
+        "icon": "leaf",
+    },
+    {
+        "key": "pantry",
+        "label": "Pantry",
+        "subtitle": "Spices, tins",
+        "icon": "file-tray",
+    },
+    {
+        "key": "household",
+        "label": "Household",
+        "subtitle": "Soap, detergent",
+        "icon": "sparkles",
+    },
+]
+
+
+def grocery_aisle_keys() -> set[str]:
+    return {a["key"] for a in GROCERY_AISLES}
+
+
 def group_for_vendor_category(category: str | VendorCategory | None) -> str | None:
     if category is None:
         return None

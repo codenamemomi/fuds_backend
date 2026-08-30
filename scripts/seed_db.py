@@ -150,10 +150,10 @@ VENDORS = [
         "closing_time": time(20, 0),
         "status": VendorStatus.ACTIVATED,
         "products": [
-            {"name": "Tomatoes (1kg)", "price": 1500.00, "category": PC.GROCERY_STORE.value},
-            {"name": "Yam (medium tuber)", "price": 2500.00, "category": PC.GROCERY_STORE.value},
-            {"name": "Plantain (bunch of 10)", "price": 2000.00, "category": PC.GROCERY_STORE.value},
-            {"name": "Ugu Bunch", "price": 500.00, "category": PC.GROCERY_STORE.value},
+            {"name": "Tomatoes (1kg)", "price": 1500.00, "category": PC.GROCERY_STORE.value, "aisle": "fresh"},
+            {"name": "Yam (medium tuber)", "price": 2500.00, "category": PC.GROCERY_STORE.value, "aisle": "fresh"},
+            {"name": "Plantain (bunch of 10)", "price": 2000.00, "category": PC.GROCERY_STORE.value, "aisle": "fresh"},
+            {"name": "Ugu Bunch", "price": 500.00, "category": PC.GROCERY_STORE.value, "aisle": "fresh"},
         ],
     },
     {
@@ -165,10 +165,14 @@ VENDORS = [
         "closing_time": time(21, 0),
         "status": VendorStatus.ACTIVATED,
         "products": [
-            {"name": "Dangote Sugar (1kg)", "price": 1800.00, "category": PC.SUPERMARKET.value},
-            {"name": "Indomie Chicken (10 packs)", "price": 3000.00, "category": PC.SUPERMARKET.value},
-            {"name": "Groundnut Oil (5L)", "price": 9500.00, "category": PC.SUPERMARKET.value},
-            {"name": "Peak Milk Tin (170g)", "price": 900.00, "category": PC.SUPERMARKET.value},
+            {"name": "Dangote Sugar (1kg)", "price": 1800.00, "category": PC.SUPERMARKET.value, "aisle": "staples"},
+            {"name": "Indomie Chicken (10 packs)", "price": 3000.00, "category": PC.SUPERMARKET.value, "aisle": "staples"},
+            {"name": "Groundnut Oil (5L)", "price": 9500.00, "category": PC.SUPERMARKET.value, "aisle": "staples"},
+            {"name": "Peak Milk Tin (170g)", "price": 900.00, "category": PC.SUPERMARKET.value, "aisle": "dairy"},
+            {"name": "Peak Milk (1L carton)", "price": 1800.00, "category": PC.SUPERMARKET.value, "aisle": "dairy"},
+            {"name": "Milo Refill (400g)", "price": 3200.00, "category": PC.SUPERMARKET.value, "aisle": "beverages"},
+            {"name": "Kellogg's Corn Flakes (500g)", "price": 2800.00, "category": PC.SUPERMARKET.value, "aisle": "cereals"},
+            {"name": "Ofada Rice (5kg)", "price": 8500.00, "category": PC.SUPERMARKET.value, "aisle": "staples"},
         ],
     },
     {
@@ -180,10 +184,10 @@ VENDORS = [
         "closing_time": time(18, 0),
         "status": VendorStatus.ACTIVATED,
         "products": [
-            {"name": "Crayfish (cup)", "price": 800.00, "category": PC.LOCAL_MARKET.value},
-            {"name": "Palm Oil (1L)", "price": 2200.00, "category": PC.LOCAL_MARKET.value},
-            {"name": "Locust Beans (Iru)", "price": 500.00, "category": PC.LOCAL_MARKET.value},
-            {"name": "Stockfish (medium)", "price": 4500.00, "category": PC.LOCAL_MARKET.value},
+            {"name": "Crayfish (cup)", "price": 800.00, "category": PC.LOCAL_MARKET.value, "aisle": "pantry"},
+            {"name": "Palm Oil (1L)", "price": 2200.00, "category": PC.LOCAL_MARKET.value, "aisle": "staples"},
+            {"name": "Locust Beans (Iru)", "price": 500.00, "category": PC.LOCAL_MARKET.value, "aisle": "pantry"},
+            {"name": "Stockfish (medium)", "price": 4500.00, "category": PC.LOCAL_MARKET.value, "aisle": "pantry"},
         ],
     },
     {
@@ -195,10 +199,10 @@ VENDORS = [
         "closing_time": time(19, 30),
         "status": VendorStatus.ACTIVATED,
         "products": [
-            {"name": "Spinach (bunch)", "price": 600.00, "category": PC.GROCERY_STORE.value},
-            {"name": "Sweet Potato (1kg)", "price": 1000.00, "category": PC.GROCERY_STORE.value},
-            {"name": "Free-Range Eggs (crate)", "price": 3500.00, "category": PC.GROCERY_STORE.value},
-            {"name": "Ginger & Garlic Mix (250g)", "price": 800.00, "category": PC.GROCERY_STORE.value},
+            {"name": "Spinach (bunch)", "price": 600.00, "category": PC.GROCERY_STORE.value, "aisle": "fresh"},
+            {"name": "Sweet Potato (1kg)", "price": 1000.00, "category": PC.GROCERY_STORE.value, "aisle": "fresh"},
+            {"name": "Free-Range Eggs (crate)", "price": 3500.00, "category": PC.GROCERY_STORE.value, "aisle": "dairy"},
+            {"name": "Ginger & Garlic Mix (250g)", "price": 800.00, "category": PC.GROCERY_STORE.value, "aisle": "pantry"},
         ],
     },
     {
@@ -210,10 +214,14 @@ VENDORS = [
         "closing_time": time(22, 0),
         "status": VendorStatus.ACTIVATED,
         "products": [
-            {"name": "Coca-Cola (6-pack, 50cl)", "price": 1800.00, "category": PC.SUPERMARKET.value},
-            {"name": "Golden Morn (1kg)", "price": 2200.00, "category": PC.SUPERMARKET.value},
-            {"name": "Omo Detergent (900g)", "price": 2100.00, "category": PC.SUPERMARKET.value},
-            {"name": "Titus Sardine (4-pack)", "price": 2600.00, "category": PC.SUPERMARKET.value},
+            {"name": "Coca-Cola (6-pack, 50cl)", "price": 1800.00, "category": PC.SUPERMARKET.value, "aisle": "beverages"},
+            {"name": "Golden Morn (1kg)", "price": 2200.00, "category": PC.SUPERMARKET.value, "aisle": "cereals"},
+            {"name": "Omo Detergent (900g)", "price": 2100.00, "category": PC.SUPERMARKET.value, "aisle": "household"},
+            {"name": "Titus Sardine (4-pack)", "price": 2600.00, "category": PC.SUPERMARKET.value, "aisle": "pantry"},
+            {"name": "Bournvita (500g)", "price": 2900.00, "category": PC.SUPERMARKET.value, "aisle": "beverages"},
+            {"name": "Quaker Oats (500g)", "price": 2400.00, "category": PC.SUPERMARKET.value, "aisle": "cereals"},
+            {"name": "Lipton Yellow Label (100 bags)", "price": 3100.00, "category": PC.SUPERMARKET.value, "aisle": "beverages"},
+            {"name": "Hollandia Yoghurt (1L)", "price": 1600.00, "category": PC.SUPERMARKET.value, "aisle": "dairy"},
         ],
     },
     {
@@ -225,10 +233,10 @@ VENDORS = [
         "closing_time": time(19, 0),
         "status": VendorStatus.ACTIVATED,
         "products": [
-            {"name": "Pepper Mix (bag)", "price": 3500.00, "category": PC.LOCAL_MARKET.value},
-            {"name": "Onions (bag, 5kg)", "price": 4000.00, "category": PC.LOCAL_MARKET.value},
-            {"name": "Fresh Tomatoes (basket)", "price": 9000.00, "category": PC.LOCAL_MARKET.value},
-            {"name": "Dried Fish (bundle)", "price": 5500.00, "category": PC.LOCAL_MARKET.value},
+            {"name": "Pepper Mix (bag)", "price": 3500.00, "category": PC.LOCAL_MARKET.value, "aisle": "fresh"},
+            {"name": "Onions (bag, 5kg)", "price": 4000.00, "category": PC.LOCAL_MARKET.value, "aisle": "fresh"},
+            {"name": "Fresh Tomatoes (basket)", "price": 9000.00, "category": PC.LOCAL_MARKET.value, "aisle": "fresh"},
+            {"name": "Dried Fish (bundle)", "price": 5500.00, "category": PC.LOCAL_MARKET.value, "aisle": "pantry"},
         ],
     },
     # ── Shops ─────────────────────────────────────────────────────────────────
@@ -359,7 +367,11 @@ def seed():
                     .first()
                 )
                 if existing_product:
-                    print(f"         [SKIP] Product: {p['name']}")
+                    if p.get("aisle") and existing_product.aisle != p.get("aisle"):
+                        existing_product.aisle = p.get("aisle")
+                        print(f"         [AISLE] Product: {p['name']} → {p['aisle']}")
+                    else:
+                        print(f"         [SKIP] Product: {p['name']}")
                 else:
                     product = Product(vendor_id=vendor.id, **p)
                     db.add(product)

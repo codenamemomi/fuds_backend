@@ -18,6 +18,7 @@ class Product(Base):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     price: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
     category: Mapped[Optional[str]] = mapped_column(String(40), nullable=True, index=True)
+    aisle: Mapped[Optional[str]] = mapped_column(String(40), nullable=True, index=True)
     image_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     vendor: Mapped["Vendor"] = relationship(back_populates="products")

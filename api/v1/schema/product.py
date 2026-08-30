@@ -10,6 +10,7 @@ class ProductCreate(BaseModel):
     name: str = Field(..., min_length=2)
     price: float = Field(..., gt=0)
     category: Optional[str] = None
+    aisle: Optional[str] = None
     image_url: Optional[str] = None
 
     @field_validator("category", mode="before")

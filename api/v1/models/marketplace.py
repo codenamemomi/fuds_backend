@@ -2,7 +2,7 @@ import enum
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import DateTime, ForeignKey, JSON, String
+from sqlalchemy import DateTime, ForeignKey, Integer, JSON, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from api.v1.models.base_class import Base
@@ -20,8 +20,10 @@ class GrocerySubscription(Base):
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
     item_list: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    items: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)
     frequency: Mapped[MarketplaceFrequency] = mapped_column(String(20), nullable=False)
     next_delivery: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    order_id: Mapped[Optional[int]] = mapped_column(ForeignKey("orders.id"), nullable=True)
     status: Mapped[str] = mapped_column(String(50), default="active", nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 

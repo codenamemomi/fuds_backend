@@ -45,7 +45,7 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         log.error(f"❌ [startup] Redis      — FAILED: {e}")
 
-    # ── 3. Celery broker ───────────────────────────────────────────────────────
+    #  ── 3. Celery broker ───────────────────────────────────────────────────────
     from api.utils.settings import settings
     try:
         import redis as _redis
@@ -57,16 +57,16 @@ async def lifespan(app: FastAPI):
         log.warning(f"⚠️  [startup] Celery broker — unreachable (workers may be offline): {e}")
 
     # ── 4. Pre-warm cache ─────────────────────────────────────────────────────
-    from api.v1.services.browse import BrowseService
-    db = SessionLocal()
-    try:
-        log.info("⏳ [startup] Warming Redis browse cache...")
-        BrowseService(db).warm_cache()
-        log.info("✅ [startup] Cache warm   — complete")
-    except Exception as e:
-        log.error(f"❌ [startup] Cache warm   — FAILED: {e}")
-    finally:
-        db.close()
+    # from api.v1.services.browse import BrowseService
+    # db = SessionLocal()
+    # try:
+    #     log.info("⏳ [startup] Warming Redis browse cache...")
+    #     BrowseService(db).warm_cache()
+    #     log.info("✅ [startup] Cache warm   — complete")
+    # except Exception as e:
+    #     log.error(f"❌ [startup] Cache warm   — FAILED: {e}")
+    # finally:
+    #     db.close()
 
     yield
     log.info("🛑 [shutdown] Application shutting down.")

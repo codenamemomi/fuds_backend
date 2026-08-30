@@ -53,6 +53,9 @@ def test_meal_type_values():
     assert MealType.BREAKFAST.value == "breakfast"
     assert MealType.LUNCH.value == "lunch"
     assert MealType.DINNER.value == "dinner"
+    assert "product_id" in ScheduledMeal.__table__.c
+    assert "quantity" in ScheduledMeal.__table__.c
+    assert "order_id" in ScheduledMeal.__table__.c
 
 
 def test_order_can_represent_multi_vendor_checkout():

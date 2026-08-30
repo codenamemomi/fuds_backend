@@ -6,6 +6,8 @@ from api.v1.routes.browse import router as browse_router
 from api.v1.routes.cart import router as cart_router
 from api.v1.routes.orders import router as orders_router
 from api.v1.routes.payments import router as payments_router
+from api.v1.routes.marketplace import router as marketplace_router
+from api.v1.routes.schedule import router as schedule_router
 from api.v1.routes.user import router as user_router
 
 router = APIRouter(prefix="/api/v1", tags=["v1"])
@@ -14,6 +16,8 @@ router.include_router(browse_router)
 router.include_router(cart_router)
 router.include_router(orders_router)
 router.include_router(payments_router)
+router.include_router(schedule_router)
+router.include_router(marketplace_router)
 router.include_router(analytics_router)
 
 
