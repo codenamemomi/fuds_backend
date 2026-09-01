@@ -70,3 +70,20 @@ def test_user_has_otp_verification_fields():
     assert "otp_expires_at" not in User.__table__.c
     assert "otp" not in User.__table__.c
     assert "phone_verified" in User.__table__.c
+
+
+def test_seed_product_payload_strips_aisle_when_schema_is_missing():
+    from scripts.seed_db import product_payload_for_db
+
+    payload = {
+        "name": "Milo Refill (400g)",
+        "price": 3200.0,
+        "category": "supermarket",
+        "aisle": "beverages",
+    }
+
+    assert product_payload_for_db(payload, has_aisle=False) == {
+        "name": "Milo Refill (400g)",
+        "price": 3200.0,
+        "category": "supermarket",
+    }

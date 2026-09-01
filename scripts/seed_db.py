@@ -16,6 +16,8 @@ import sys
 from datetime import time
 from pathlib import Path
 
+from sqlalchemy import inspect, text
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from api.db.session import SessionLocal
@@ -25,6 +27,28 @@ from api.v1.models.vendor import Vendor, VendorStatus
 
 VC = VendorCategory
 PC = ProductCategory
+
+def product_payload_for_db(product: dict, has_aisle: bool) -> dict:
+    payload = dict(product)
+    if not has_aisle:
+        payload.pop("aisle", None)
+    return payload
+
+
+def product_exists(db, vendor_id: int, product_name: str, has_aisle: bool):
+    if has_aisle:
+        return (
+            db.query(Product)
+            .filter(Product.vendor_id == vendor_id, Product.name == product_name)
+            .first()
+        )
+
+    row = db.execute(
+        text("SELECT id FROM products WHERE vendor_id = :vendor_id AND name = :name LIMIT 1"),
+        {"vendor_id": vendor_id, "name": product_name},
+    ).fetchone()
+    return row is not None
+
 
 VENDORS = [
     # ── Food ──────────────────────────────────────────────────────────────────
@@ -336,6 +360,13 @@ def seed():
     try:
         vendors_added = 0
         products_added = 0
+        product_columns = {col["name"] for col in inspect(db.bind).get_columns("products")}
+        has_aisle = "aisle" in product_columns
+
+        if not has_aisle:
+            print("\n⚠️  Live DB is missing the products.aisle column. Seed will continue without it.")
+            print("   Run: alembic upgrade head")
+            print("   Then rerun: python scripts/seed_db.py\n")
 
         for raw in VENDORS:
             vendor_data = copy.deepcopy(raw)
@@ -350,7 +381,6 @@ def seed():
             if existing:
                 print(f"  [SKIP] Vendor already exists: {vendor_data['business_name']}")
                 vendor = existing
-                # Keep category up to date if we expanded taxonomy
                 if existing.category != vendor_data.get("category"):
                     existing.category = vendor_data.get("category")
             else:
@@ -361,20 +391,36 @@ def seed():
                 print(f"  [ADD]  Vendor: {vendor_data['business_name']} ({vendor_data['category']})")
 
             for p in products:
-                existing_product = (
-                    db.query(Product)
-                    .filter(Product.vendor_id == vendor.id, Product.name == p["name"])
-                    .first()
-                )
+                product_data = product_payload_for_db(p, has_aisle)
+                existing_product = product_exists(db, vendor.id, product_data["name"], has_aisle)
+
                 if existing_product:
-                    if p.get("aisle") and existing_product.aisle != p.get("aisle"):
-                        existing_product.aisle = p.get("aisle")
-                        print(f"         [AISLE] Product: {p['name']} → {p['aisle']}")
+                    if has_aisle and p.get("aisle"):
+                        existing_row = db.query(Product).filter(Product.vendor_id == vendor.id, Product.name == p["name"]).first()
+                        if existing_row and existing_row.aisle != p.get("aisle"):
+                            existing_row.aisle = p.get("aisle")
+                            print(f"         [AISLE] Product: {p['name']} → {p['aisle']}")
+                        else:
+                            print(f"         [SKIP] Product: {p['name']}")
                     else:
                         print(f"         [SKIP] Product: {p['name']}")
                 else:
-                    product = Product(vendor_id=vendor.id, **p)
-                    db.add(product)
+                    if has_aisle:
+                        product = Product(vendor_id=vendor.id, **product_data)
+                        db.add(product)
+                    else:
+                        db.execute(
+                            text(
+                                "INSERT INTO products (vendor_id, name, price, category) "
+                                "VALUES (:vendor_id, :name, :price, :category)"
+                            ),
+                            {
+                                "vendor_id": vendor.id,
+                                "name": product_data["name"],
+                                "price": product_data["price"],
+                                "category": product_data.get("category"),
+                            },
+                        )
                     products_added += 1
                     print(f"         [ADD]  Product: {p['name']} — ₦{p['price']:,.2f}")
 
