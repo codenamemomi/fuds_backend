@@ -425,6 +425,13 @@ def seed():
                     print(f"         [ADD]  Product: {p['name']} — ₦{p['price']:,.2f}")
 
         db.commit()
+        try:
+            from api.utils.cache import clear_browse_cache
+
+            cleared = clear_browse_cache()
+            print(f"\n🧹 Cleared {cleared} stale browse cache keys.")
+        except Exception as cache_err:
+            print(f"\n⚠️  Could not clear browse cache: {cache_err}")
         print(f"\n✅ Seed complete: {vendors_added} vendors, {products_added} products added.")
 
     except Exception as e:

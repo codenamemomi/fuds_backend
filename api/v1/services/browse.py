@@ -37,7 +37,10 @@ class BrowseService:
             cached = redis_client.get(cache_key)
             if cached:
                 data = json.loads(cached)
-                return [BrowseCategoryRead(**d) for d in data]
+                cats = [BrowseCategoryRead(**d) for d in data]
+                # Ignore a warm that ran before vendors were seeded.
+                if cats and any(c.vendor_count > 0 for c in cats):
+                    return cats
         except Exception:
             pass
 
@@ -67,10 +70,11 @@ class BrowseService:
                 )
             )
 
-        try:
-            redis_client.setex(cache_key, 3600, json.dumps([c.model_dump() for c in result]))
-        except Exception:
-            pass
+        if any(c.vendor_count > 0 for c in result):
+            try:
+                redis_client.setex(cache_key, 3600, json.dumps([c.model_dump() for c in result]))
+            except Exception:
+                pass
 
         return result
 
@@ -92,7 +96,9 @@ class BrowseService:
             cached = redis_client.get(cache_key)
             if cached:
                 data = json.loads(cached)
-                return [VendorRead(**d) for d in data]
+                # Empty lists are often a stale warm from before seed.
+                if isinstance(data, list) and len(data) > 0:
+                    return [VendorRead(**d) for d in data]
         except Exception:
             pass
 
@@ -126,10 +132,11 @@ class BrowseService:
         vendors = query.order_by(Vendor.business_name.asc()).offset(offset).limit(limit).all()
         result = [self._vendor_read(v) for v in vendors]
 
-        try:
-            redis_client.setex(cache_key, 3600, json.dumps([v.model_dump() for v in result]))
-        except Exception:
-            pass
+        if result:
+            try:
+                redis_client.setex(cache_key, 3600, json.dumps([v.model_dump() for v in result]))
+            except Exception:
+                pass
 
         return result
 
@@ -186,7 +193,8 @@ class BrowseService:
             cached = redis_client.get(cache_key)
             if cached:
                 data = json.loads(cached)
-                return [ProductWithVendor(**d) for d in data]
+                if isinstance(data, list) and len(data) > 0:
+                    return [ProductWithVendor(**d) for d in data]
         except Exception:
             pass
 
