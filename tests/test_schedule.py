@@ -272,6 +272,10 @@ class TestScheduleApi:
         assert float(order["total_price"]) == 10000
         assert len(order["items"]) == 3
 
+        pending_meals = client.get(f"/api/v1/schedule?delivery_date={day}", headers=headers)
+        assert pending_meals.status_code == 200
+        assert all(meal["status"] == "scheduled" for meal in pending_meals.json())
+
         extra = client.post(
             "/api/v1/schedule",
             headers=headers,

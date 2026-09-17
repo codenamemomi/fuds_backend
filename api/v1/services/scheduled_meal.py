@@ -177,6 +177,17 @@ class ScheduledMealService(BaseService[ScheduledMeal, ScheduledMealCreate, Sched
         if wanted:
             meals = [m for m in meals if _meal_type_value(m.meal_type) in wanted]
 
+        existing_order_ids = {meal.order_id for meal in meals if meal.order_id}
+        if existing_order_ids:
+            existing = self.db.query(Order).filter(
+                Order.id.in_(existing_order_ids),
+                Order.user_id == user_id,
+                Order.parent_order_id.is_(None),
+                Order.payment_status != "paid",
+            ).order_by(Order.created_at.desc()).first()
+            if existing:
+                return OrderService(self.db)._serialize_order(existing)
+
         ready = [m for m in meals if m.product_id and m.status != "confirmed"]
         if not ready:
             raise HTTPException(
@@ -233,7 +244,8 @@ class ScheduledMealService(BaseService[ScheduledMeal, ScheduledMealCreate, Sched
                 )
             )
             meal.order_id = parent.id
-            meal.status = "confirmed"
+            # Keep the meal editable until the linked order is paid.
+            meal.status = "scheduled"
             meal.vendor_id = product.vendor_id
 
         parent.total_price = round(grand_total, 2)

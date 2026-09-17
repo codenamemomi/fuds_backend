@@ -5,7 +5,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import Session, joinedload
 
 from api.v1.models.categories import GROCERY_AISLES, grocery_aisle_keys, vendor_categories_for_group
-from api.v1.models.marketplace import GrocerySubscription, MarketplaceFrequency
+from api.v1.models.marketplace import GrocerySubscription, MarketplaceFrequency, MarketplaceProduct
 from api.v1.models.order import Order
 from api.v1.models.order_item import OrderItem
 from api.v1.models.product import Product
@@ -17,8 +17,8 @@ from api.v1.schema.marketplace import (
     GrocerySubscriptionCreate,
     GrocerySubscriptionRead,
     GrocerySubscriptionUpdate,
+    MarketplaceProductRead,
 )
-from api.v1.schema.product import ProductWithVendor
 from api.v1.services.order import OrderService
 
 LAGOS_TZ = ZoneInfo("Africa/Lagos")
@@ -30,37 +30,30 @@ class MarketplaceService:
         self.db = db
 
     def catalog(self, aisle: str | None = None, search: str | None = None) -> GroceryCatalogRead:
-        grocery_cats = vendor_categories_for_group("grocery")
-        query = (
-            self.db.query(Product)
-            .options(joinedload(Product.vendor))
-            .filter(Product.category.in_(grocery_cats))
-        )
+        query = self.db.query(MarketplaceProduct).filter(MarketplaceProduct.is_active.is_(True))
         if aisle:
             if aisle not in grocery_aisle_keys():
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"Unknown grocery aisle '{aisle}'",
                 )
-            query = query.filter(Product.aisle == aisle)
+            query = query.filter(MarketplaceProduct.aisle == aisle)
         if search and search.strip():
-            query = query.filter(Product.name.ilike(f"%{search.strip()}%"))
+            query = query.filter(MarketplaceProduct.name.ilike(f"%{search.strip()}%"))
 
-        products = query.order_by(Product.aisle.asc(), Product.name.asc()).all()
+        products = query.order_by(MarketplaceProduct.aisle.asc(), MarketplaceProduct.name.asc()).all()
         counts: dict[str, int] = {}
-        reads: list[ProductWithVendor] = []
+        reads: list[MarketplaceProductRead] = []
         for product in products:
-            reads.append(_product_read(product))
+            reads.append(_marketplace_product_read(product))
             if product.aisle:
                 counts[product.aisle] = counts.get(product.aisle, 0) + 1
 
         # Aisle counts should reflect the full grocery catalog, not the filtered list
         if aisle or (search and search.strip()):
-            rows = (
-                self.db.query(Product.aisle)
-                .filter(Product.category.in_(grocery_cats), Product.aisle.isnot(None))
-                .all()
-            )
+            rows = self.db.query(MarketplaceProduct.aisle).filter(
+                MarketplaceProduct.is_active.is_(True), MarketplaceProduct.aisle.isnot(None)
+            ).all()
             counts = {}
             for (key,) in rows:
                 if key:
@@ -96,6 +89,15 @@ class MarketplaceService:
     def create_subscription(
         self, user_id: int, payload: GrocerySubscriptionCreate
     ) -> GrocerySubscriptionRead:
+        existing = self.db.query(GrocerySubscription).filter(
+            GrocerySubscription.user_id == user_id,
+            GrocerySubscription.status != "cancelled",
+        ).first()
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="You already have a grocery subscription. Edit the existing list instead.",
+            )
         packed, names = self._pack_items(payload.items)
         next_dt = _next_delivery_dt(payload.next_delivery)
         row = GrocerySubscription(
@@ -107,6 +109,7 @@ class MarketplaceService:
             else payload.frequency,
             next_delivery=next_dt,
             status="active",
+            change_summary=None,
         )
         self.db.add(row)
         self.db.commit()
@@ -118,9 +121,11 @@ class MarketplaceService:
     ) -> GrocerySubscriptionRead:
         row = self._owned(user_id, sub_id)
         if payload.items is not None:
+            previous_items = row.items or []
             packed, names = self._pack_items(payload.items)
             row.items = packed
             row.item_list = names
+            row.change_summary = self._build_change_summary(previous_items, packed)
         if payload.frequency is not None:
             row.frequency = (
                 payload.frequency.value
@@ -136,11 +141,32 @@ class MarketplaceService:
 
     def cancel_subscription(self, user_id: int, sub_id: int) -> None:
         row = self._owned(user_id, sub_id)
+        if row.order_id:
+            order = self.db.query(Order).filter(Order.id == row.order_id).first()
+            if order and order.status not in {"completed", "cancelled"}:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="This subscription has a pending grocery delivery and cannot be deleted yet.",
+                )
         row.status = "cancelled"
         self.db.commit()
 
-    def checkout(self, user_id: int, sub_id: int):
+    def checkout(self, user_id: int, sub_id: int, cycles: int = 1):
         row = self._owned(user_id, sub_id)
+        if row.order_id:
+            existing = self.db.query(Order).filter(
+                Order.id == row.order_id,
+                Order.user_id == user_id,
+                Order.parent_order_id.is_(None),
+            ).first()
+            if existing:
+                if existing.payment_status != "paid":
+                    return OrderService(self.db)._serialize_order(existing)
+                if existing.status not in {"completed", "cancelled"}:
+                    raise HTTPException(
+                        status_code=status.HTTP_409_CONFLICT,
+                        detail="This grocery delivery is already paid. You can pay again after it is delivered.",
+                    )
         items = self._hydrate_items(row)
         if not items:
             raise HTTPException(
@@ -158,6 +184,25 @@ class MarketplaceService:
         )
         self.db.add(parent)
         self.db.flush()
+
+        if all(item.marketplace_product_id for item in items):
+            grand = round(sum(item.subtotal for item in items) * cycles, 2)
+            for item in items:
+                self.db.add(
+                    OrderItem(
+                        order_id=parent.id,
+                        vendor_id=None,
+                        product_id=None,
+                        marketplace_product_id=item.marketplace_product_id,
+                        quantity=item.quantity,
+                        price=item.price,
+                    )
+                )
+            parent.total_price = grand
+            row.order_id = parent.id
+            self.db.commit()
+            self.db.refresh(parent)
+            return OrderService(self.db)._serialize_order(parent)
 
         by_vendor: dict[int, list[GroceryItemRead]] = {}
         for item in items:
@@ -208,12 +253,10 @@ class MarketplaceService:
         packed: list[dict] = []
         names: list[str] = []
         for item in items:
-            product = (
-                self.db.query(Product)
-                .options(joinedload(Product.vendor))
-                .filter(Product.id == item.product_id)
-                .first()
-            )
+            product = self.db.query(MarketplaceProduct).filter(
+                MarketplaceProduct.id == item.product_id,
+                MarketplaceProduct.is_active.is_(True),
+            ).first()
             if not product:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
@@ -238,22 +281,38 @@ class MarketplaceService:
         if not raw and row.item_list:
             return []
         ids = [int(entry["product_id"]) for entry in raw if "product_id" in entry]
-        products = {
-            p.id: p
-            for p in self.db.query(Product)
-            .options(joinedload(Product.vendor))
-            .filter(Product.id.in_(ids))
-            .all()
+        marketplace_products = {
+            p.id: p for p in self.db.query(MarketplaceProduct).filter(
+                MarketplaceProduct.id.in_(ids), MarketplaceProduct.is_active.is_(True)
+            ).all()
         } if ids else {}
+        missing_ids = [product_id for product_id in ids if product_id not in marketplace_products]
+        legacy_products = {
+            p.id: p for p in self.db.query(Product).options(joinedload(Product.vendor)).filter(
+                Product.id.in_(missing_ids)
+            ).all()
+        } if missing_ids else {}
         result: list[GroceryItemRead] = []
         for entry in raw:
-            product = products.get(int(entry["product_id"]))
+            product_id = int(entry["product_id"])
+            product = marketplace_products.get(product_id) or legacy_products.get(product_id)
             if not product:
                 continue
             qty = int(entry.get("quantity") or 1)
             price = float(product.price)
-            result.append(
-                GroceryItemRead(
+            if isinstance(product, MarketplaceProduct):
+                result.append(GroceryItemRead(
+                    product_id=product.id,
+                    quantity=qty,
+                    name=product.name,
+                    price=price,
+                    subtotal=round(price * qty, 2),
+                    aisle=product.aisle,
+                    image_url=product.image_url,
+                    marketplace_product_id=product.id,
+                ))
+            else:
+                result.append(GroceryItemRead(
                     product_id=product.id,
                     quantity=qty,
                     name=product.name,
@@ -263,13 +322,18 @@ class MarketplaceService:
                     image_url=product.image_url,
                     vendor_id=product.vendor_id,
                     vendor_name=product.vendor.business_name if product.vendor else None,
-                )
-            )
+                ))
         return result
 
     def _to_read(self, row: GrocerySubscription) -> GrocerySubscriptionRead:
         items = self._hydrate_items(row)
         total = round(sum(i.subtotal for i in items), 2)
+        payment_status = None
+        if row.order_id:
+            order_state = self.db.query(Order.status, Order.payment_status).filter(Order.id == row.order_id).first()
+            if order_state and order_state[0] not in {"completed", "cancelled"}:
+                payment_status = order_state[1]
+        changes = row.change_summary or {}
         return GrocerySubscriptionRead(
             id=row.id,
             user_id=row.user_id,
@@ -281,22 +345,48 @@ class MarketplaceService:
             items=items,
             item_count=sum(i.quantity for i in items),
             total=total,
+            payment_status=payment_status,
+            added_items=changes.get("added", []),
+            removed_items=changes.get("removed", []),
+            change_total=float(changes.get("change_total", 0) or 0),
         )
 
+    def _build_change_summary(self, previous: list[dict], current: list[dict]) -> dict:
+        before = {int(item["product_id"]): int(item.get("quantity") or 1) for item in previous}
+        after = {int(item["product_id"]): int(item.get("quantity") or 1) for item in current}
+        ids = set(before) | set(after)
+        products = {
+            product.id: product
+            for product in self.db.query(MarketplaceProduct).filter(MarketplaceProduct.id.in_(ids)).all()
+        } if ids else {}
+        added: list[dict] = []
+        removed: list[dict] = []
+        change_total = 0.0
+        for product_id in ids:
+            delta = after.get(product_id, 0) - before.get(product_id, 0)
+            product = products.get(product_id)
+            if not delta or not product:
+                continue
+            amount = round(abs(delta) * float(product.price), 2)
+            entry = {
+                "product_id": product_id,
+                "name": product.name,
+                "quantity": abs(delta),
+                "amount": amount,
+            }
+            (added if delta > 0 else removed).append(entry)
+            change_total += amount if delta > 0 else -amount
+        return {"added": added, "removed": removed, "change_total": round(change_total, 2)}
 
-def _product_read(product: Product) -> ProductWithVendor:
-    vendor = product.vendor
-    return ProductWithVendor(
-        vendor_id=product.vendor_id,
+
+def _marketplace_product_read(product: MarketplaceProduct) -> MarketplaceProductRead:
+    return MarketplaceProductRead(
         name=product.name,
         price=float(product.price),
         category=product.category,
         aisle=product.aisle,
         image_url=product.image_url,
         id=product.id,
-        vendor_name=vendor.business_name if vendor else None,
-        vendor_category=vendor.category if vendor else None,
-        vendor_address=vendor.address if vendor else None,
     )
 
 

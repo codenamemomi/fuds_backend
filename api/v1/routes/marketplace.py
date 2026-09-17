@@ -12,6 +12,8 @@ from api.v1.schema.marketplace import (
     GrocerySubscriptionCreate,
     GrocerySubscriptionRead,
     GrocerySubscriptionUpdate,
+    GrocerySubscriptionCheckout,
+    MarketplaceProductRead,
 )
 from api.v1.schema.order import OrderRead
 from api.v1.services.marketplace import MarketplaceService
@@ -58,6 +60,15 @@ def grocery_catalog(
 ):
     """Milo, milk, cereals, staples, and other grocery necessities."""
     return service.catalog(aisle=aisle, search=search)
+
+
+@router.get("/essentials", response_model=list[MarketplaceProductRead])
+def grocery_essentials(
+    search: Optional[str] = Query(None),
+    service: MarketplaceService = Depends(get_marketplace_service),
+):
+    """Suggested grocery essentials for creating a shopping list."""
+    return service.catalog(search=search).products
 
 
 @router.get("/subscriptions", response_model=list[GrocerySubscriptionRead])
@@ -108,8 +119,9 @@ def cancel_subscription(
 )
 def checkout_subscription(
     sub_id: int,
+    payload: GrocerySubscriptionCheckout = GrocerySubscriptionCheckout(),
     current_user: User = Depends(_get_current_user),
     service: MarketplaceService = Depends(get_marketplace_service),
 ):
     """Turn a grocery roster into a parent order (first / next delivery)."""
-    return service.checkout(current_user.id, sub_id)
+    return service.checkout(current_user.id, sub_id, payload.cycles)

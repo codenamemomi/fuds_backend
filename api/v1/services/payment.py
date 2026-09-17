@@ -32,6 +32,7 @@ from sqlalchemy.orm import Session
 
 from api.utils.settings import settings
 from api.v1.models.order import Order
+from api.v1.models.scheduled_meal import ScheduledMeal
 from api.v1.models.payment import Payment, PaymentMethod, PaymentProvider, PaymentStatus
 from api.v1.models.user import User
 from api.v1.schema.payment import (
@@ -664,6 +665,11 @@ class PaymentService:
             sub.payment_status = "paid"
             if sub.status == "pending":
                 sub.status = "confirmed"
+
+        self.db.query(ScheduledMeal).filter(
+            ScheduledMeal.order_id == order.id,
+            ScheduledMeal.status != "cancelled",
+        ).update({ScheduledMeal.status: "confirmed"}, synchronize_session=False)
 
     @staticmethod
     def _to_initialize_response(payment: Payment) -> InitializePaymentResponse:

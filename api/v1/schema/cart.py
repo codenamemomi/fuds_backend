@@ -4,19 +4,22 @@ from pydantic import BaseModel, Field
 
 
 class CartItemCreate(BaseModel):
-    product_id: int
-    vendor_id: int
+    product_id: Optional[int] = None
+    marketplace_product_id: Optional[int] = None
+    vendor_id: Optional[int] = None
     quantity: int = Field(default=1, ge=1)
 
 
 class CartItemUpdate(BaseModel):
-    product_id: int
+    product_id: Optional[int] = None
+    marketplace_product_id: Optional[int] = None
     quantity: int = Field(ge=0)
 
 
 class CartItemRead(BaseModel):
-    product_id: int
-    vendor_id: int
+    product_id: Optional[int] = None
+    marketplace_product_id: Optional[int] = None
+    vendor_id: Optional[int] = None
     name: str
     price: float
     quantity: int

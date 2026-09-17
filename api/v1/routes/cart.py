@@ -74,6 +74,15 @@ def remove_cart_item(
     return service.remove_item(current_user.id, product_id)
 
 
+@router.delete("/marketplace-item/{product_id}", response_model=CartRead)
+def remove_marketplace_cart_item(
+    product_id: int,
+    current_user: User = Depends(_get_current_user),
+    service: CartService = Depends(get_cart_service),
+):
+    return service.remove_marketplace_item(current_user.id, product_id)
+
+
 @router.delete("", status_code=status.HTTP_200_OK)
 def clear_cart(
     current_user: User = Depends(_get_current_user),

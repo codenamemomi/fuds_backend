@@ -21,9 +21,12 @@ class OrderService:
         if not cart.items:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cart is empty")
 
-        # Group items by vendor
+        marketplace_items = [item for item in cart.items if item.marketplace_product_id is not None]
+        vendor_items = [item for item in cart.items if item.marketplace_product_id is None]
+
+        # Group vendor products by vendor; marketplace groceries remain FUDS-owned.
         vendor_groups: dict[int, list] = {}
-        for item in cart.items:
+        for item in vendor_items:
             vendor_groups.setdefault(item.vendor_id, []).append(item)
 
         # Create parent order (umbrella for all vendors)
@@ -38,9 +41,19 @@ class OrderService:
         self.db.add(parent_order)
         self.db.flush()  # get parent_order.id without committing
 
+        for item in marketplace_items:
+            self.db.add(OrderItem(
+                order_id=parent_order.id,
+                vendor_id=None,
+                product_id=None,
+                marketplace_product_id=item.marketplace_product_id,
+                quantity=item.quantity,
+                price=item.price,
+            ))
+
         # Create one sub-order per vendor
-        for vendor_id, vendor_items in vendor_groups.items():
-            vendor_total = sum(i.price * i.quantity for i in vendor_items)
+        for vendor_id, grouped_items in vendor_groups.items():
+            vendor_total = sum(i.price * i.quantity for i in grouped_items)
             sub_order = Order(
                 user_id=user_id,
                 parent_order_id=parent_order.id,
@@ -54,7 +67,7 @@ class OrderService:
             self.db.add(sub_order)
             self.db.flush()
 
-            for item in vendor_items:
+            for item in grouped_items:
                 order_item = OrderItem(
                     order_id=sub_order.id,
                     vendor_id=vendor_id,
@@ -104,10 +117,11 @@ class OrderService:
             items.append(OrderItemRead(
                 id=oi.id,
                 product_id=oi.product_id,
+                marketplace_product_id=oi.marketplace_product_id,
                 vendor_id=oi.vendor_id,
                 quantity=oi.quantity,
                 price=float(oi.price),
-                product_name=oi.product.name if oi.product else None,
+                product_name=(oi.product.name if oi.product else oi.marketplace_product.name if oi.marketplace_product else None),
                 vendor_name=oi.vendor.business_name if oi.vendor else None,
             ))
 

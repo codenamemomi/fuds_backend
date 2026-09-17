@@ -9,7 +9,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from api.db.session import get_db
-from api.v1.models import Base
+from api.v1.models import Base, MarketplaceProduct, Order
 from api.v1.models.product import Product
 from api.v1.models.scheduled_meal import now_lagos
 from api.v1.models.vendor import Vendor, VendorStatus
@@ -64,10 +64,10 @@ def token(client: TestClient) -> str:
     return resp.json()["access_token"]
 
 
-def seed_groceries() -> Product:
+def seed_groceries() -> MarketplaceProduct:
     db = TestingSessionLocal()
     try:
-        existing = db.query(Product).filter(Product.name == "Milo Refill (400g)").first()
+        existing = db.query(MarketplaceProduct).filter(MarketplaceProduct.name == "Milo Refill (400g)").first()
         if existing:
             return existing
         vendor = Vendor(
@@ -79,22 +79,19 @@ def seed_groceries() -> Product:
         )
         db.add(vendor)
         db.flush()
-        milo = Product(
-            vendor_id=vendor.id,
+        milo = MarketplaceProduct(
             name="Milo Refill (400g)",
             price=3200,
             category="supermarket",
             aisle="beverages",
         )
-        milk = Product(
-            vendor_id=vendor.id,
+        milk = MarketplaceProduct(
             name="Peak Milk (1L carton)",
             price=1800,
             category="supermarket",
             aisle="dairy",
         )
-        cereal = Product(
-            vendor_id=vendor.id,
+        cereal = MarketplaceProduct(
             name="Golden Morn (1kg)",
             price=2200,
             category="supermarket",
@@ -125,8 +122,48 @@ class TestMarketplaceCatalog:
         assert all(p["aisle"] == "beverages" for p in body["products"])
         assert any("Milo" in p["name"] for p in body["products"])
 
+    def test_essentials_can_be_searched(self, client):
+        seed_groceries()
+        resp = client.get("/api/v1/marketplace/essentials?search=milk")
+        assert resp.status_code == 200
+        assert [product["name"] for product in resp.json()] == ["Peak Milk (1L carton)"]
+
 
 class TestGroceryRoster:
+    def test_user_has_one_editable_subscription_with_change_summary(self, client, token):
+        milo = seed_groceries()
+        db = TestingSessionLocal()
+        milk = db.query(MarketplaceProduct).filter(MarketplaceProduct.name == "Peak Milk (1L carton)").first()
+        db.close()
+        headers = {"Authorization": f"Bearer {token}"}
+        created = client.post(
+            "/api/v1/marketplace/subscriptions",
+            headers=headers,
+            json={"items": [{"product_id": milo.id, "quantity": 2}]},
+        )
+        assert created.status_code == 201
+        duplicate = client.post(
+            "/api/v1/marketplace/subscriptions",
+            headers=headers,
+            json={"items": [{"product_id": milk.id, "quantity": 1}]},
+        )
+        assert duplicate.status_code == 409
+        updated = client.patch(
+            f"/api/v1/marketplace/subscriptions/{created.json()['id']}",
+            headers=headers,
+            json={"items": [{"product_id": milk.id, "quantity": 1}]},
+        )
+        assert updated.status_code == 200
+        body = updated.json()
+        assert body["added_items"][0]["name"] == "Peak Milk (1L carton)"
+        assert body["removed_items"][0]["name"] == "Milo Refill (400g)"
+        assert body["change_total"] == -4600
+        deleted = client.delete(
+            f"/api/v1/marketplace/subscriptions/{created.json()['id']}",
+            headers=headers,
+        )
+        assert deleted.status_code == 200
+
     def test_create_schedule_and_checkout(self, client, token):
         milo = seed_groceries()
         headers = {"Authorization": f"Bearer {token}"}
@@ -146,6 +183,7 @@ class TestGroceryRoster:
         assert body["item_count"] == 2
         assert body["total"] == 6400
         assert body["items"][0]["name"] == "Milo Refill (400g)"
+        assert body["payment_status"] is None
 
         checkout = client.post(
             f"/api/v1/marketplace/subscriptions/{body['id']}/checkout",
@@ -155,3 +193,41 @@ class TestGroceryRoster:
         order = checkout.json()
         assert float(order["total_price"]) == 6400
         assert order["payment_status"] == "pending"
+        assert order["vendor_id"] is None
+        assert len(order["items"]) == 1
+        assert order["items"][0]["vendor_id"] is None
+        assert order["items"][0]["marketplace_product_id"] == milo.id
+
+        reused = client.post(
+            f"/api/v1/marketplace/subscriptions/{body['id']}/checkout",
+            headers=headers,
+            json={"cycles": 5},
+        )
+        assert reused.status_code == 201
+        assert reused.json()["id"] == order["id"]
+
+        db = TestingSessionLocal()
+        paid_order = db.query(Order).filter(Order.id == order["id"]).first()
+        paid_order.payment_status = "paid"
+        paid_order.status = "confirmed"
+        db.commit()
+        db.close()
+        blocked = client.post(
+            f"/api/v1/marketplace/subscriptions/{body['id']}/checkout",
+            headers=headers,
+            json={"cycles": 2},
+        )
+        assert blocked.status_code == 409
+
+        db = TestingSessionLocal()
+        paid_order = db.query(Order).filter(Order.id == order["id"]).first()
+        paid_order.status = "completed"
+        db.commit()
+        db.close()
+        next_delivery = client.post(
+            f"/api/v1/marketplace/subscriptions/{body['id']}/checkout",
+            headers=headers,
+            json={"cycles": 2},
+        )
+        assert next_delivery.status_code == 201
+        assert float(next_delivery.json()["total_price"]) == 12800

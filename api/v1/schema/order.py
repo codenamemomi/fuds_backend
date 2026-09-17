@@ -5,8 +5,9 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class OrderItemCreate(BaseModel):
-    vendor_id: int
-    product_id: int
+    vendor_id: Optional[int] = None
+    product_id: Optional[int] = None
+    marketplace_product_id: Optional[int] = None
     quantity: int = Field(default=1, ge=1)
     price: float = Field(..., ge=0)
 
@@ -30,8 +31,9 @@ class CheckoutRequest(BaseModel):
 
 class OrderItemRead(BaseModel):
     id: int
-    product_id: int
-    vendor_id: int
+    product_id: Optional[int] = None
+    marketplace_product_id: Optional[int] = None
+    vendor_id: Optional[int] = None
     quantity: int
     price: float
     product_name: Optional[str] = None

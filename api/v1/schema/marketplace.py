@@ -4,7 +4,23 @@ from typing import Optional
 from pydantic import BaseModel, ConfigDict, Field
 
 from api.v1.models.marketplace import MarketplaceFrequency
-from api.v1.schema.product import ProductWithVendor
+
+
+class MarketplaceProductRead(BaseModel):
+    id: int
+    name: str
+    price: float
+    category: Optional[str] = None
+    aisle: Optional[str] = None
+    image_url: Optional[str] = None
+
+
+class MarketplaceProductCreate(BaseModel):
+    name: str = Field(..., min_length=2)
+    price: float = Field(..., gt=0)
+    category: Optional[str] = None
+    aisle: Optional[str] = None
+    image_url: Optional[str] = None
 
 
 class GroceryItemIn(BaseModel):
@@ -22,6 +38,14 @@ class GroceryItemRead(BaseModel):
     image_url: Optional[str] = None
     vendor_id: Optional[int] = None
     vendor_name: Optional[str] = None
+    marketplace_product_id: Optional[int] = None
+
+
+class GroceryChangeRead(BaseModel):
+    product_id: int
+    name: str
+    quantity: int
+    amount: float
 
 
 class GroceryAisleRead(BaseModel):
@@ -34,7 +58,7 @@ class GroceryAisleRead(BaseModel):
 
 class GroceryCatalogRead(BaseModel):
     aisles: list[GroceryAisleRead]
-    products: list[ProductWithVendor]
+    products: list[MarketplaceProductRead]
 
 
 class GrocerySubscriptionCreate(BaseModel):
@@ -50,6 +74,10 @@ class GrocerySubscriptionUpdate(BaseModel):
     status: Optional[str] = None
 
 
+class GrocerySubscriptionCheckout(BaseModel):
+    cycles: int = Field(default=1, ge=1, le=5)
+
+
 class GrocerySubscriptionRead(BaseModel):
     id: int
     user_id: int
@@ -61,6 +89,10 @@ class GrocerySubscriptionRead(BaseModel):
     items: list[GroceryItemRead] = []
     item_count: int = 0
     total: float = 0.0
+    payment_status: Optional[str] = None
+    added_items: list[GroceryChangeRead] = []
+    removed_items: list[GroceryChangeRead] = []
+    change_total: float = 0.0
 
     model_config = ConfigDict(from_attributes=True)
 

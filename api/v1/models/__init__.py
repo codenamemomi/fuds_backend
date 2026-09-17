@@ -2,7 +2,7 @@
 
 from api.v1.models.analytics_summary import AnalyticsSummary
 from api.v1.models.base_class import Base
-from api.v1.models.marketplace import GrocerySubscription, Marketplace, MarketplaceFrequency
+from api.v1.models.marketplace import GrocerySubscription, Marketplace, MarketplaceFrequency, MarketplaceProduct
 from api.v1.models.order import Order
 from api.v1.models.order_item import OrderItem
 from api.v1.models.payment import Payment, PaymentMethod, PaymentProvider, PaymentStatus
@@ -37,6 +37,7 @@ __all__ = [
     "GrocerySubscription",
     "Marketplace",
     "MarketplaceFrequency",
+    "MarketplaceProduct",
     "VendorCategory",
     "ProductCategory",
     "BrowseGroup",

@@ -23,10 +23,91 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from api.db.session import SessionLocal
 from api.v1.models.categories import ProductCategory, VendorCategory
 from api.v1.models.product import Product
+from api.v1.models.marketplace import MarketplaceProduct
 from api.v1.models.vendor import Vendor, VendorStatus
 
 VC = VendorCategory
 PC = ProductCategory
+
+MARKETPLACE_PRODUCTS = [
+    {"name": "Peak Milk (1L carton)", "price": 1800.00, "category": PC.SUPERMARKET.value, "aisle": "dairy"},
+    {"name": "Milo Refill (400g)", "price": 3200.00, "category": PC.SUPERMARKET.value, "aisle": "beverages"},
+    {"name": "Golden Morn (1kg)", "price": 2200.00, "category": PC.SUPERMARKET.value, "aisle": "cereals"},
+    {"name": "Kellogg's Corn Flakes (500g)", "price": 2800.00, "category": PC.SUPERMARKET.value, "aisle": "cereals"},
+    {"name": "Dangote Sugar (1kg)", "price": 1800.00, "category": PC.SUPERMARKET.value, "aisle": "staples"},
+    {"name": "Indomie Chicken (10 packs)", "price": 3000.00, "category": PC.SUPERMARKET.value, "aisle": "staples"},
+    {"name": "Groundnut Oil (5L)", "price": 9500.00, "category": PC.SUPERMARKET.value, "aisle": "staples"},
+    {"name": "Ofada Rice (5kg)", "price": 8500.00, "category": PC.SUPERMARKET.value, "aisle": "staples"},
+    {"name": "Tomatoes (1kg)", "price": 1500.00, "category": PC.GROCERY_STORE.value, "aisle": "fresh"},
+    {"name": "Yam (medium tuber)", "price": 2500.00, "category": PC.GROCERY_STORE.value, "aisle": "fresh"},
+    {"name": "Plantain (bunch of 10)", "price": 2000.00, "category": PC.GROCERY_STORE.value, "aisle": "fresh"},
+    {"name": "Ugu Bunch", "price": 500.00, "category": PC.GROCERY_STORE.value, "aisle": "fresh"},
+    {"name": "Crayfish (cup)", "price": 800.00, "category": PC.LOCAL_MARKET.value, "aisle": "pantry"},
+    {"name": "Palm Oil (1L)", "price": 2200.00, "category": PC.LOCAL_MARKET.value, "aisle": "staples"},
+    {"name": "Stockfish (medium)", "price": 4500.00, "category": PC.LOCAL_MARKET.value, "aisle": "pantry"},
+    {"name": "Coca-Cola (6-pack, 50cl)", "price": 1800.00, "category": PC.SUPERMARKET.value, "aisle": "beverages"},
+    {"name": "Omo Detergent (900g)", "price": 2100.00, "category": PC.SUPERMARKET.value, "aisle": "household"},
+    {"name": "Titus Sardine (4-pack)", "price": 2600.00, "category": PC.SUPERMARKET.value, "aisle": "pantry"},
+    {"name": "Quaker Oats (500g)", "price": 2400.00, "category": PC.SUPERMARKET.value, "aisle": "cereals"},
+    {"name": "Hollandia Yoghurt (1L)", "price": 1600.00, "category": PC.SUPERMARKET.value, "aisle": "dairy"},
+    # Proteins & frozen
+    {"name": "Frozen Chicken (whole, 1.5kg)", "price": 6500.00, "category": PC.SUPERMARKET.value, "aisle": "frozen"},
+    {"name": "Turkey Wings (1kg)", "price": 5200.00, "category": PC.SUPERMARKET.value, "aisle": "frozen"},
+    {"name": "Beef (1kg)", "price": 6000.00, "category": PC.LOCAL_MARKET.value, "aisle": "protein"},
+    {"name": "Goat Meat (1kg)", "price": 7500.00, "category": PC.LOCAL_MARKET.value, "aisle": "protein"},
+    {"name": "Titus Fish (frozen, medium)", "price": 3000.00, "category": PC.SUPERMARKET.value, "aisle": "frozen"},
+    {"name": "Eggs (crate of 30)", "price": 4200.00, "category": PC.SUPERMARKET.value, "aisle": "dairy"},
+    {"name": "Snails (5 pieces)", "price": 3500.00, "category": PC.LOCAL_MARKET.value, "aisle": "protein"},
+
+    # Spices & seasoning
+    {"name": "Maggi Star Cubes (50 pack)", "price": 1500.00, "category": PC.SUPERMARKET.value, "aisle": "condiments"},
+    {"name": "Knorr Seasoning Cubes (50 pack)", "price": 1600.00, "category": PC.SUPERMARKET.value, "aisle": "condiments"},
+    {"name": "Curry Powder (100g)", "price": 800.00, "category": PC.SUPERMARKET.value, "aisle": "condiments"},
+    {"name": "Thyme (100g)", "price": 700.00, "category": PC.SUPERMARKET.value, "aisle": "condiments"},
+    {"name": "Dried Pepper (Ata Rodo, cup)", "price": 1000.00, "category": PC.LOCAL_MARKET.value, "aisle": "fresh"},
+    {"name": "Onions (1kg)", "price": 1200.00, "category": PC.GROCERY_STORE.value, "aisle": "fresh"},
+    {"name": "Ginger & Garlic (mixed, 250g)", "price": 900.00, "category": PC.LOCAL_MARKET.value, "aisle": "fresh"},
+    {"name": "Ogiri (local seasoning, small)", "price": 600.00, "category": PC.LOCAL_MARKET.value, "aisle": "pantry"},
+
+    # Beans, grains & flours
+    {"name": "Brown Beans (Oloyin, 5kg)", "price": 7500.00, "category": PC.SUPERMARKET.value, "aisle": "staples"},
+    {"name": "Semovita (2kg)", "price": 3200.00, "category": PC.SUPERMARKET.value, "aisle": "staples"},
+    {"name": "Garri (5kg)", "price": 4000.00, "category": PC.GROCERY_STORE.value, "aisle": "staples"},
+    {"name": "Pounded Yam Flour (2kg)", "price": 3800.00, "category": PC.SUPERMARKET.value, "aisle": "staples"},
+    {"name": "Wheat Flour (2kg)", "price": 3000.00, "category": PC.SUPERMARKET.value, "aisle": "staples"},
+
+    # Household & cleaning
+    {"name": "Klin Bleach (1L)", "price": 1200.00, "category": PC.SUPERMARKET.value, "aisle": "household"},
+    {"name": "Morning Fresh Dishwashing Liquid (900ml)", "price": 2000.00, "category": PC.SUPERMARKET.value, "aisle": "household"},
+    {"name": "Toilet Rolls (4-pack)", "price": 1500.00, "category": PC.SUPERMARKET.value, "aisle": "household"},
+    {"name": "Air Freshener Spray", "price": 2500.00, "category": PC.SUPERMARKET.value, "aisle": "household"},
+    {"name": "Mosquito Coil (10 pack)", "price": 900.00, "category": PC.SUPERMARKET.value, "aisle": "household"},
+    {"name": "Insecticide Spray (Raid/Baygon)", "price": 3200.00, "category": PC.SUPERMARKET.value, "aisle": "household"},
+    {"name": "Cooking Gas Refill (5kg)", "price": 8500.00, "category": PC.LOCAL_MARKET.value, "aisle": "household"},
+
+    # Personal care
+    {"name": "Dettol Soap (3-pack)", "price": 1800.00, "category": PC.SUPERMARKET.value, "aisle": "personal_care"},
+    {"name": "Close-Up Toothpaste (150ml)", "price": 1300.00, "category": PC.SUPERMARKET.value, "aisle": "personal_care"},
+    {"name": "Shield/Rexona Deodorant", "price": 2200.00, "category": PC.SUPERMARKET.value, "aisle": "personal_care"},
+    {"name": "Vaseline Petroleum Jelly (250ml)", "price": 1800.00, "category": PC.SUPERMARKET.value, "aisle": "personal_care"},
+
+    # Baby items
+    {"name": "Pampers (Size 3, pack)", "price": 6500.00, "category": PC.SUPERMARKET.value, "aisle": "baby"},
+    {"name": "Cerelac (400g)", "price": 3800.00, "category": PC.SUPERMARKET.value, "aisle": "baby"},
+    {"name": "SMA Infant Formula (400g)", "price": 9500.00, "category": PC.SUPERMARKET.value, "aisle": "baby"},
+
+    # Snacks & bakery
+    {"name": "Agege Bread (loaf)", "price": 1800.00, "category": PC.LOCAL_MARKET.value, "aisle": "bakery"},
+    {"name": "Digestive Biscuits (pack)", "price": 1200.00, "category": PC.SUPERMARKET.value, "aisle": "snacks"},
+    {"name": "Plantain Chips (200g)", "price": 1000.00, "category": PC.GROCERY_STORE.value, "aisle": "snacks"},
+    {"name": "Chin Chin (500g)", "price": 1500.00, "category": PC.LOCAL_MARKET.value, "aisle": "snacks"},
+
+    # Beverages
+    {"name": "Lipton Yellow Label Tea (bags)", "price": 1800.00, "category": PC.SUPERMARKET.value, "aisle": "beverages"},
+    {"name": "Bournvita (400g)", "price": 3000.00, "category": PC.SUPERMARKET.value, "aisle": "beverages"},
+    {"name": "Chivita Juice (1L)", "price": 2000.00, "category": PC.SUPERMARKET.value, "aisle": "beverages"},
+    {"name": "Bottled Water (1.5L, pack of 12)", "price": 3500.00, "category": PC.SUPERMARKET.value, "aisle": "beverages"},
+]
 
 def product_payload_for_db(product: dict, has_aisle: bool) -> dict:
     payload = dict(product)
@@ -360,8 +441,24 @@ def seed():
     try:
         vendors_added = 0
         products_added = 0
+        marketplace_products_added = 0
         product_columns = {col["name"] for col in inspect(db.bind).get_columns("products")}
         has_aisle = "aisle" in product_columns
+
+        for product_data in MARKETPLACE_PRODUCTS:
+            existing_product = db.query(MarketplaceProduct).filter(
+                MarketplaceProduct.name == product_data["name"]
+            ).first()
+            if existing_product:
+                existing_product.price = product_data["price"]
+                existing_product.category = product_data.get("category")
+                existing_product.aisle = product_data.get("aisle")
+                existing_product.is_active = True
+                print(f"         [SKIP] Marketplace product: {product_data['name']}")
+            else:
+                db.add(MarketplaceProduct(**product_data))
+                marketplace_products_added += 1
+                print(f"         [ADD]  Marketplace product: {product_data['name']} — ₦{product_data['price']:,.2f}")
 
         if not has_aisle:
             print("\n⚠️  Live DB is missing the products.aisle column. Seed will continue without it.")
@@ -432,7 +529,10 @@ def seed():
             print(f"\n🧹 Cleared {cleared} stale browse cache keys.")
         except Exception as cache_err:
             print(f"\n⚠️  Could not clear browse cache: {cache_err}")
-        print(f"\n✅ Seed complete: {vendors_added} vendors, {products_added} products added.")
+        print(
+            f"\n✅ Seed complete: {vendors_added} vendors, {products_added} vendor products, "
+            f"{marketplace_products_added} marketplace products added."
+        )
 
     except Exception as e:
         db.rollback()
